@@ -1,0 +1,15 @@
+[Unit]
+Description=Timer to trigger H.A.T.S Systematic Trading Cycle daily at 4:05 PM ET
+RefuseManualStart=no
+RefuseManualStop=no
+
+[Timer]
+# NOTE: Systemd timers do not support a "TimeZone" directive and will ignore it.
+# To ensure this runs at 4:05 PM Eastern Time, you must set the system timezone:
+#   sudo timedatectl set-timezone America/New_York
+# Run every Monday through Friday at 16:05 (4:05 PM) in the configured system timezone
+OnCalendar=Mon..Fri *-*-* 16:05:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

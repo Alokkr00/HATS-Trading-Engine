@@ -1,0 +1,11 @@
+[Unit]
+Description=H.A.T.S Systematic Trading Engine Cycle
+After=network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/app
+ExecStart=/usr/local/bin/python -m src.main --interval 1d
+EnvironmentFile=/app/.env
+StandardOutput=journal
+StandardError=journal

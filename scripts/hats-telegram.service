@@ -1,0 +1,15 @@
+[Unit]
+Description=H.A.T.S Interactive Telegram Bot Listener Service
+After=network.target
+
+[Service]
+Type=simple
+User=alok
+WorkingDirectory=d:/stocks
+ExecStart=python -m src.main --listener
+Restart=always
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

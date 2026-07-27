@@ -1,0 +1,74 @@
+# ==============================================================================
+# Risk Defaults — Conservative Baseline Configuration
+# ==============================================================================
+# These values are intentionally conservative.  They are designed to protect
+# capital first and allow performance second.  Override in a strategy-specific
+# config file or via environment variables — NEVER weaken these defaults in
+# this file without a documented, peer-reviewed justification.
+#
+# All percentages are expressed as decimals (0.05 = 5%).
+# All dollar amounts are in USD.
+# ==============================================================================
+
+# ---------------------------------------------------------------------------
+# Position Sizing
+# ---------------------------------------------------------------------------
+position_sizing:
+  max_position_pct: 0.05            # Max 5% of portfolio in any single position
+  default_risk_per_trade_pct: 0.01  # Risk 1% of total equity per trade
+  max_portfolio_positions: 10       # Max concurrent open positions
+  min_position_value: 100           # Don't open positions smaller than $100 (avoid dust)
+  max_position_value: 25000         # Hard cap on single position value ($)
+
+# ---------------------------------------------------------------------------
+# Stop Losses
+# ---------------------------------------------------------------------------
+stop_loss:
+  default_stop_loss_pct: 0.03       # 3% fixed stop loss from entry
+  atr_stop_multiplier: 2.0          # 2× ATR for trailing / volatility stops
+  atr_period: 14                    # ATR look-back in bars
+  max_stop_loss_pct: 0.10           # Refuse any trade whose stop implies >10% risk
+  time_stop_bars: 20                # Exit if position held beyond 20 bars with no edge
+
+# ---------------------------------------------------------------------------
+# Circuit Breakers  (system-level hard limits — non-negotiable)
+# ---------------------------------------------------------------------------
+circuit_breakers:
+  max_daily_loss_pct: 0.03          # Halt ALL trading after 3% daily portfolio loss
+  max_drawdown_pct: 0.10            # Kill switch at 10% drawdown from equity peak
+  max_trades_per_day: 20            # Rate-limit: no more than 20 round-trips / day
+  max_order_value: 10000            # Single order hard cap ($)
+  max_open_orders: 5                # Max concurrent unfilled orders
+  cooldown_after_circuit_break_min: 60  # Minutes to stay halted after a circuit break
+
+# ---------------------------------------------------------------------------
+# Data Quality Gates  (pre-conditions before any strategy is allowed to trade)
+# ---------------------------------------------------------------------------
+data_quality:
+  min_bars_required: 200            # Minimum historical bars before strategy activates
+  max_gap_days: 5                   # Max acceptable calendar-day gap in OHLCV data
+  stale_data_minutes: 15            # In live mode, data older than this is "stale"
+  max_allowed_zero_volume_pct: 0.02 # >2% zero-volume bars → reject symbol
+  require_adjusted_close: true      # Always use split/dividend-adjusted prices
+  min_avg_daily_volume: 100000      # Skip illiquid stocks (< 100k shares/day avg)
+  max_spread_pct: 0.02              # Reject if estimated spread > 2%
+
+# ---------------------------------------------------------------------------
+# Portfolio-Level Limits
+# ---------------------------------------------------------------------------
+portfolio:
+  max_sector_exposure_pct: 0.30     # No more than 30% in one sector
+  max_correlated_positions: 3       # Max positions with pairwise correlation > 0.70
+  correlation_threshold: 0.70       # Correlation level that triggers the limit above
+  max_portfolio_heat_pct: 0.06      # Total open risk (sum of position risks) ≤ 6%
+  max_leverage: 1.0                 # No leverage (1.0 = cash only)
+
+# ---------------------------------------------------------------------------
+# Fail-Safe Behavior
+# ---------------------------------------------------------------------------
+fail_safe:
+  default_action: reject            # "reject" or "allow" — MUST be "reject" (fail closed)
+  require_risk_check: true          # Every order MUST pass risk gate; no bypass
+  log_all_decisions: true           # Audit-trail every accept / reject
+  heartbeat_interval_sec: 30        # System health heartbeat every 30 s
+  max_missed_heartbeats: 3          # Kill switch after 3 consecutive missed heartbeats

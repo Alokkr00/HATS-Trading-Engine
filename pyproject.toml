@@ -1,0 +1,54 @@
+[project]
+name = "stocks-trading-bot"
+version = "0.1.0"
+description = "Production-grade algorithmic trading bot for US markets (Webull broker)"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+dependencies = [
+    "pandas>=2.1.0",
+    "numpy>=1.25.0",
+    "yfinance>=0.2.30",
+    "pyarrow>=14.0.0",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+indicators = [
+    "pandas-ta>=0.3.14b1",
+]
+analytics = [
+    "quantstats>=0.0.62",
+]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.1.0",
+]
+all = [
+    "stocks-trading-bot[indicators,analytics,dev]",
+]
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "config*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "SIM"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+filterwarnings = [
+    "ignore:.*copy_on_write.*",
+    "ignore:.*starlette.testclient.*",
+]

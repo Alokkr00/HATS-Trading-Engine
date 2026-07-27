@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - hats-data:/app/data
+    environment:
+      - WEBULL_DRY_RUN=True
+      - WEBULL_ACCOUNT_ID=mock_webull_account
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+    restart: always
+    depends_on:
+      - timescaledb
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    ports:
+      - "5432:5432"
+    volumes:
+      - hats-db:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=hats_trading
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres_password_secret
+    restart: always
+
+volumes:
+  hats-data:
+  hats-db:

@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Production-grade real-time monitoring suite for US Market trading operations.">
+    <title>H.A.T.S Trading Suite</title>
+    <!-- Google Fonts Inter & Outfit -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- ApexCharts CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="glass-bg-glow"></div>
+    <div class="app-container">
+        
+        <!-- Header Section -->
+        <header class="app-header">
+            <div class="logo-area">
+                <span class="logo-icon">▲</span>
+                <h1>H.A.T.S <span class="accent-text">TRADING</span></h1>
+            </div>
+            <div class="status-panel">
+                <div class="status-item">
+                    <span class="status-label">Bot Engine:</span>
+                    <label class="switch-container">
+                        <input type="checkbox" id="bot-toggle">
+                        <span class="switch-slider"></span>
+                    </label>
+                    <span id="bot-status-label" class="bot-status-inactive">PAUSED</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Stream:</span>
+                    <span id="ws-badge" class="badge pulsing-badge pulsing-green">CONNECTED</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">Environment:</span>
+                    <span id="env-badge" class="badge badge-paper">Dry Run</span>
+                </div>
+                <div class="status-item">
+                    <span class="status-label">System Health:</span>
+                    <span id="health-badge" class="badge badge-success">HEALTHY</span>
+                </div>
+                <button id="refresh-btn" class="btn btn-secondary">Sync Now</button>
+                <button id="liquidate-btn" class="btn btn-danger">Emergency Flat</button>
+            </div>
+        </header>
+
+        <!-- Navigation Tabs -->
+        <nav class="app-nav">
+            <button class="nav-tab active" id="tab-live">Live Monitor</button>
+            <button class="nav-tab" id="tab-backtest">Backtesting Portal</button>
+        </nav>
+
+        <!-- Live Monitor Tab Content -->
+        <div class="tab-content" id="content-live">
+
+            <!-- Unified KPI & Risk Status Dashboard Row -->
+            <section class="kpi-grid-unified" style="margin-top: 0.5rem; margin-bottom: 1.25rem;">
+                <!-- 1. Market Regime Bias -->
+                <div class="kpi-card" id="risk-regime-card">
+                    <div class="kpi-icon icon-purple">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svg-icon"><polygon points="12 2 2 7 12 12 22 7 12 2z"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>
+                    </div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Market Bias</span>
+                        <span class="kpi-value" id="regime-badge-val" style="color: var(--accent-glow);">UNKNOWN</span>
+                    </div>
+                </div>
+                
+                <!-- 2. Portfolio Risk Heat -->
+                <div class="kpi-card" id="risk-heat-card">
+                    <div class="kpi-icon icon-pink">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svg-icon"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+                    </div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Risk Heat</span>
+                        <span class="kpi-value" id="heat-badge-val">0.00% / 6.00%</span>
+                    </div>
+                </div>
+                
+                <!-- 3. Risk Circuit Breaker -->
+                <div class="kpi-card" id="risk-cb-card">
+                    <div class="kpi-icon icon-blue">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svg-icon"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                    </div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Breaker</span>
+                        <span class="kpi-value" id="cb-badge-val">CLEAR</span>
+                    </div>
+                </div>
+                
+                <!-- 4. Net Liquidity -->
+                <div class="kpi-card" id="kpi-net-liquidity">
+                    <div class="kpi-icon icon-purple">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svg-icon"><path d="M20 12V8H6a2 2 0 0 1-2-2c0-1.1.9-2 2-2h12v4"></path><path d="M4 6v12c0 1.1.9 2 2 2h14v-4"></path><path d="M18 12a2 2 0 0 0-2 2c0 1.1.9 2 2 2h4v-4h-4z"></path></svg>
+                    </div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Net Liquidity</span>
+                        <span class="kpi-value" id="val-net-liquidity">$100,000.00</span>
+                    </div>
+                </div>
+                
+                <!-- 5. Cash Balance -->
+                <div class="kpi-card" id="kpi-cash-balance">
+                    <div class="kpi-icon icon-pink">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svg-icon"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                    </div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Cash</span>
+                        <span class="kpi-value" id="val-cash-balance">$100,000.00</span>
+                    </div>
+                </div>
+                
+                <!-- 6. Open Positions -->
+                <div class="kpi-card" id="kpi-open-positions">
+                    <div class="kpi-icon icon-blue">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svg-icon"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                    </div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Positions</span>
+                        <span class="kpi-value" id="val-open-positions">0</span>
+                    </div>
+                </div>
+                
+                <!-- 7. Active Orders -->
+                <div class="kpi-card" id="kpi-pending-orders">
+                    <div class="kpi-icon icon-yellow">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="svg-icon"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                    </div>
+                    <div class="kpi-info">
+                        <span class="kpi-label">Active Orders</span>
+                        <span class="kpi-value" id="val-pending-orders">0</span>
+                    </div>
+                </div>
+            </section>
+
+        <!-- Secondary Grid: Charts & Watchlist -->
+        <main class="dashboard-body">
+            
+            <!-- Left Panel: Allocations & Active Positions -->
+            <div class="main-panel">
+                
+                <!-- Equity Curve & Performance Card -->
+                <div class="content-card" id="performance-card">
+                    <div class="card-header">
+                        <h2>Historical Equity Curve (Net Liquidity)</h2>
+                        <div class="card-header-actions">
+                            <span class="badge badge-success" id="perf-trend-badge">+5.24% (30D)</span>
+                        </div>
+                    </div>
+                    <div class="performance-grid">
+                        <div class="performance-chart-wrapper" style="min-height: 250px; width: 100%;">
+                            <div id="equity-line-chart"></div>
+                        </div>
+                        <div class="stats-panel-grid">
+                            <div class="stat-box">
+                                <span class="stat-lbl">Sharpe Ratio</span>
+                                <span class="stat-val" id="stat-sharpe">2.14</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-lbl">Win Rate</span>
+                                <span class="stat-val" id="stat-win-rate">62.5%</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-lbl">Profit Factor</span>
+                                <span class="stat-val" id="stat-profit-factor">1.78</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-lbl">Max Drawdown</span>
+                                <span class="stat-val text-danger" id="stat-drawdown">-4.82%</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Positions Card -->
+                <div class="content-card" id="positions-card">
+                    <div class="card-header">
+                        <h2>Open Portfolio Positions</h2>
+                        <span class="badge badge-info" id="positions-count-badge">0 Active</span>
+                    </div>
+                    <div class="table-container">
+                        <table id="positions-table">
+                            <thead>
+                                <tr>
+                                    <th>Ticker</th>
+                                    <th>Quantity</th>
+                                    <th>Cost Basis</th>
+                                    <th>Current Price</th>
+                                    <th>Market Value</th>
+                                    <th>Unrealized PnL</th>
+                                    <th>Allocation</th>
+                                </tr>
+                            </thead>
+                            <tbody id="positions-tbody">
+                                <tr>
+                                    <td colspan="7" class="empty-state">No open positions. Ready for strategy triggers.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Active Orders Card -->
+                <div class="content-card" id="orders-card">
+                    <div class="card-header">
+                        <h2>Working Orders</h2>
+                    </div>
+                    <div class="table-container">
+                        <table id="orders-table">
+                            <thead>
+                                <tr>
+                                    <th>Client ID</th>
+                                    <th>Ticker</th>
+                                    <th>Side</th>
+                                    <th>Quantity</th>
+                                    <th>Limit Price</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="orders-tbody">
+                                <tr>
+                                    <td colspan="6" class="empty-state">No active working orders.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel: Watchlist Signals & Charts -->
+            <div class="side-panel">
+                
+                <!-- Watchlist Signals Card -->
+                <div class="content-card" id="watchlist-card">
+                    <div class="card-header">
+                        <h2>Strategy Watchlist</h2>
+                    </div>
+                    <div class="table-container">
+                        <table id="watchlist-table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th>Price</th>
+                                    <th>MA Cross</th>
+                                    <th>RSI Rev</th>
+                                    <th>BB Squeeze</th>
+                                    <th>Sector Mom</th>
+                                    <th>IV Runup</th>
+                                    <th>Breadth Rev</th>
+                                </tr>
+                            </thead>
+                            <tbody id="watchlist-tbody">
+                                <tr>
+                                    <td colspan="5" class="empty-state">Computing indicators...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Asset Allocation Chart Card -->
+                <div class="content-card" id="chart-card">
+                    <div class="card-header">
+                        <h2>Asset Allocation</h2>
+                    </div>
+                    <div class="chart-wrapper" style="min-height: 250px; width: 100%;">
+                        <div id="allocation-pie-chart"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Lower Panel: Logs and Transactions -->
+        <section class="lower-dashboard">
+            <!-- Transactions Card -->
+            <div class="content-card half-card" id="transactions-card">
+                <div class="card-header">
+                    <h2>Recent Executions</h2>
+                </div>
+                <div class="list-container" id="transactions-list">
+                    <div class="empty-state">No executed trades logged in current database.</div>
+                </div>
+            </div>
+
+            <!-- System Logs Card -->
+            <div class="content-card half-card" id="logs-card">
+                <div class="card-header">
+                    <h2>System Heartbeat Logs</h2>
+                </div>
+                <div class="logs-console" id="logs-console">
+                    <div class="log-line text-muted">Listening for heartbeat logs...</div>
+                </div>
+            </div>
+        </section> <!-- End of lower-dashboard -->
+            
+            <!-- Decision Audits Section -->
+            <div class="content-card" id="decisions-card" style="margin-top: 1.25rem; width: 100%;">
+                <div class="card-header">
+                    <h2>Live Forward-Testing Decision Audits</h2>
+                    <span class="badge badge-info" id="decisions-count-badge">0 Logs</span>
+                </div>
+                <div class="table-container" style="max-height: 250px; overflow-y: auto;">
+                    <table id="decisions-table">
+                        <thead>
+                            <tr>
+                                <th>Timestamp</th>
+                                <th>Cycle ID</th>
+                                <th>Symbol</th>
+                                <th>Hurst</th>
+                                <th>Signals</th>
+                                <th>Equity</th>
+                                <th>Heat</th>
+                                <th>Stress Loss</th>
+                                <th>Risk Checks</th>
+                                <th>Action Taken</th>
+                            </tr>
+                        </thead>
+                        <tbody id="decisions-tbody">
+                            <tr>
+                                <td colspan="10" class="empty-state">No forward-testing decision logs recorded yet. Run a systematic cycle to begin logging.</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div> <!-- End of content-live -->
+
+        <!-- Backtesting Tab Content -->
+        <section class="tab-content hidden" id="content-backtest">
+            <div class="backtest-container">
+                <!-- Backtest Form Card -->
+                <div class="content-card" id="backtest-form-card">
+                    <div class="card-header">
+                        <h2>Run Backtest Simulation</h2>
+                    </div>
+                    <form id="backtest-form" class="backtest-form">
+                        <div class="form-group">
+                            <label for="backtest-symbol">Ticker symbol</label>
+                            <select id="backtest-symbol" class="form-input">
+                                <option value="AAPL">AAPL</option>
+                                <option value="MSFT">MSFT</option>
+                                <option value="SPY">SPY</option>
+                                <option value="QQQ">QQQ</option>
+                                <option value="TSLA">TSLA</option>
+                                <option value="GOOGL">GOOGL</option>
+                                <option value="AMZN">AMZN</option>
+                                <option value="NVDA">NVDA</option>
+                                <option value="META">META</option>
+                                <option value="JPM">JPM</option>
+                                <option value="PLTR">PLTR</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="backtest-strategy">Strategy Model</label>
+                            <select id="backtest-strategy" class="form-input">
+                                <option value="IchimokuCloud">IchimokuCloud (Japanese Trend Cloud)</option>
+                                <option value="PivotPointReversion">PivotPointReversion (Pivot Reversion)</option>
+                                <option value="MACrossover">MACrossover (Trend Following)</option>
+                                <option value="RSIMeanReversion">RSIMeanReversion (Mean Reversion)</option>
+                                <option value="BollingerSqueeze">BollingerSqueeze (Volatility Squeeze)</option>
+                                <option value="SectorMomentum">SectorMomentum (Sector Rotation)</option>
+                                <option value="OptionsIVRunup">OptionsIVRunup (Pre-Earnings IV Run-up)</option>
+                                <option value="BreadthThrustReversion">BreadthThrustReversion (Breadth Thrust Reversion)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="backtest-capital">Initial Capital ($)</label>
+                            <input type="number" id="backtest-capital" class="form-input" value="100000" min="1000" step="1000">
+                        </div>
+                        <button type="submit" id="run-backtest-btn" class="btn btn-accent">Execute Simulation</button>
+                    </form>
+                </div>
+
+                <!-- Backtest Performance Panel -->
+                <div class="backtest-results-wrapper hidden" id="backtest-results-panel">
+                    <!-- Metrics Scoreboard -->
+                    <div class="backtest-metrics-grid">
+                        <div class="stat-box">
+                            <span class="stat-lbl">CAGR</span>
+                            <span class="stat-val" id="bt-cagr">0.00%</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-lbl">Sharpe Ratio</span>
+                            <span class="stat-val" id="bt-sharpe">0.00</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-lbl">Sortino Ratio</span>
+                            <span class="stat-val" id="bt-sortino">0.00</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-lbl">Max Drawdown</span>
+                            <span class="stat-val text-danger" id="bt-drawdown">0.00%</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-lbl">Win Rate</span>
+                            <span class="stat-val" id="bt-win-rate">0.00%</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-lbl">Profit Factor</span>
+                            <span class="stat-val" id="bt-profit-factor">0.00</span>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-lbl">Total Trades</span>
+                            <span class="stat-val" id="bt-total-trades">0</span>
+                        </div>
+                    </div>
+
+                    <!-- Chart Card -->
+                    <div class="content-card" id="backtest-chart-card">
+                        <div class="card-header">
+                            <h2>Backtest Simulated Equity Curve</h2>
+                        </div>
+                        <div class="chart-wrapper-large" style="min-height: 400px; width: 100%;">
+                            <div id="backtest-chart"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Toast Notifications Container -->
+        <div id="toast-container"></div>
+
+        <!-- Footer -->
+        <footer class="app-footer">
+            <p>&copy; 2026 H.A.T.S. Built with FastAPI and Webull OpenAPI.</p>
+            <p class="text-muted">For paper-trading and validation purposes only.</p>
+        </footer>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

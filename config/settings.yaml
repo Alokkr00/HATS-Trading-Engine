@@ -1,0 +1,83 @@
+# ============================================================
+# Trading Bot Configuration — settings.yaml
+# ============================================================
+
+watchlist:
+  - AAPL
+  - MSFT
+  - GOOGL
+  - AMZN
+  - TSLA
+  - SPY
+  - QQQ
+  - NVDA
+  - META
+  - JPM
+  - PLTR
+
+# Supported timeframes for historical data
+timeframes:
+  default: "1d"
+  supported:
+    - "1m"
+    - "5m"
+    - "15m"
+    - "30m"
+    - "1h"
+    - "1d"
+    - "1wk"
+    - "1mo"
+
+# Data settings
+data:
+  raw_dir: "data/raw"
+  cache_dir: "data/cache"
+  default_history_days: 3650       # 10 years of history by default to cover multi-cycle stress periods
+  max_gap_days_forward_fill: 2    # forward-fill gaps up to this many days
+  timezone: "US/Eastern"
+
+# Fetcher settings
+fetcher:
+  source: "yfinance"
+  max_retries: 3
+  retry_base_delay_seconds: 1.0
+  retry_max_delay_seconds: 30.0
+  rate_limit_calls_per_minute: 60
+
+# ============================================================
+# H.A.T.S Systematic Upgrades
+# ============================================================
+
+# Regime Classifier settings
+regime:
+  vix_ticker: "^VIX"
+  market_proxy: "SPY"
+  low_vol_threshold: 16.0
+  high_vol_threshold: 25.0
+  crisis_vol_threshold: 35.0
+
+# Watchlist for sector rotation
+sector_etfs:
+  - XLK
+  - XLF
+  - XLV
+  - XLY
+  - XLP
+  - XLE
+  - XLI
+  - XLB
+  - XLRE
+  - XLU
+  - XLC
+
+# Inverse ETF mappings for bear market protection
+inverse_map:
+  SPY: SH
+  QQQ: PSQ
+
+# List of active strategies to execute
+active_strategies:
+  - SectorMomentum
+  - OptionsIVRunup
+  - BreadthThrustReversion
+
