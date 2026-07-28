@@ -1,7 +1,7 @@
 [project]
-name = "stocks-trading-bot"
-version = "0.1.0"
-description = "Production-grade algorithmic trading bot for US markets (Webull broker)"
+name = "hats-trading-engine"
+version = "1.0.0"
+description = "Algorithmic trading engine and risk management framework for US equities & options (Alpaca API)"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 
@@ -12,22 +12,25 @@ dependencies = [
     "pyarrow>=14.0.0",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0",
+    "pandas-ta>=0.3.14b1",
+    "alpaca-py>=0.20.0",
+    "fastapi>=0.100.0",
+    "uvicorn>=0.22.0",
+    "websockets>=11.0",
+    "sqlalchemy>=2.0.0",
+    "scipy>=1.11.0",
+    "statsmodels>=0.14.0",
+    "requests>=2.31.0",
 ]
 
 [project.optional-dependencies]
-indicators = [
-    "pandas-ta>=0.3.14b1",
-]
-analytics = [
-    "quantstats>=0.0.62",
-]
 dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "ruff>=0.1.0",
 ]
 all = [
-    "stocks-trading-bot[indicators,analytics,dev]",
+    "hats-trading-engine[dev]",
 ]
 
 [build-system]
