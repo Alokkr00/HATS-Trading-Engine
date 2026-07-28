@@ -1,7 +1,7 @@
 # H.A.T.S — Hedge & Algorithmic Trading System
 
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
-[![Tests](https://img.shields.io/badge/tests-161%20passed-brightgreen.svg)](https://github.com/)
+[![Tests](https://img.shields.io/badge/tests-153%20passed-brightgreen.svg)](https://github.com/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 H.A.T.S is a modular **quantitative trading framework and paper-trading engine** in Python built for backtesting, paper-trading, and managing swing trading strategies on US equities and options via the Alpaca API.
@@ -32,7 +32,7 @@ Originally started as an experimental trading bot, the project has evolved into 
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                     Portfolio Risk & Stress Grid                        │
 │  • 15-Point Stress Grid (-15% to +15% Price, -25% to +25% Volatility)  │
-│  • Correlation Offsets (SPY/QQQ/XLK Hedging Credit)                     │
+│  • Static ETF Correlation Offsets (SPY/QQQ/XLK Hedging Credit)          │
 │  • Minimum Short Option Margin Charge ($37.50/contract)                 │
 └────────────────────────────────────┬────────────────────────────────────┘
                                      │ Risk-Approved Orders
@@ -41,7 +41,7 @@ Originally started as an experimental trading bot, the project has evolved into 
 │                       Order Management System (OMS)                     │
 │  • Alpaca REST API Integration                                          │
 │  • OTO (One-Triggers-Other) Bracket Orders (Stop-Loss & Take-Profit)     │
-│  • Immutable SQLite Compliance Ledger (Database-level Triggers)         │
+│  • Immutable SQLite Audit Ledger (Database-level Triggers)              │
 └────────────────────────────────────┬────────────────────────────────────┘
                                      │
                     ┌────────────────┴────────────────┐
@@ -54,9 +54,9 @@ Originally started as an experimental trading bot, the project has evolved into 
 
 ---
 
-## Key Features
+## 🔑 Core Features & Design
 
-### 📈 1. Quantitative Strategies
+### 📊 1. Quantitative Strategies
 * **Statistical Arbitrage / Pairs Trading**:
   * Computes a rolling OLS hedge ratio ($\beta$) between cointegrated pairs (e.g., `JPM`-`BAC`, `SPY`-`QQQ`).
   * Trades spread Z-Score deviations ($Z = \frac{\text{Spread} - \mu}{\sigma}$) on a market-neutral basis.
@@ -67,11 +67,11 @@ Originally started as an experimental trading bot, the project has evolved into 
 
 ### 🛡️ 2. Risk & Portfolio Management (Custom Stress Grid)
 * **15-Point Stress Matrix**: Evaluates portfolio liquidation value across a 15-scenario grid ($5$ price shifts $\times$ $3$ volatility shifts).
-* **Option Revaluation**: Reprices option contracts under scenario shifts using Black-Scholes.
-* **Correlation Offsets**: Applies partial hedging credit to opposite-signed positions across correlated assets (e.g., 0.85 offset for SPY/QQQ).
+* **Option Revaluation**: Reprices option contracts under scenario shifts using Black-Scholes (fixed 5% risk-free rate assumption).
+* **Correlation Offsets**: Applies partial hedging credit to opposite-signed positions across predefined ETF pairs (e.g., 0.85 offset for SPY/QQQ).
 * **Short Option Floor**: Enforces a minimum $-37.50/contract risk charge for short options.
 
-### ⚙️ 3. Execution & Compliance Infrastructure
+### ⚙️ 3. Execution & Audit Infrastructure
 * **Alpaca Broker Integration**: Native support for live & paper trading via `alpaca-py`.
 * **OTO Bracket Orders**: Automatically attaches stop-loss and take-profit orders at entry.
 * **Immutable Compliance Ledger**: SQLite database with `BEFORE UPDATE` and `BEFORE DELETE` triggers that prevent altering trade history or audit logs.
