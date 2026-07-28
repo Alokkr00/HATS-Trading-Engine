@@ -157,6 +157,12 @@ Navigate to `http://127.0.0.1:8000` and log in using `admin` / `hats_secure_pass
 
 ---
 
+## ⚠️ Disclaimer
+
+This software is for **educational, analytical, and paper-testing purposes only**. It is not financial advice, and should not be used as the sole basis for live financial trading. Systematic trading involves substantial risk of loss. Always test thoroughly in a paper-trading environment.
+
+---
+
 ## 📜 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

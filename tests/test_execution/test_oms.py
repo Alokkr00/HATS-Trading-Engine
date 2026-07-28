@@ -12,16 +12,16 @@ import pytest
 
 from src.execution.oms import OrderManager
 from src.execution.alpaca_client import (
-    AlpacaAPIError as WebullAPIError,
-    AlpacaClient as WebullClient,
-    AlpacaConnectionError as WebullConnectionError,
+    AlpacaAPIError,
+    AlpacaClient,
+    AlpacaConnectionError,
 )
 
 
 @pytest.fixture
 def mock_client() -> MagicMock:
-    """Fixture creating a mocked WebullClient."""
-    client = MagicMock(spec=WebullClient)
+    """Fixture creating a mocked AlpacaClient."""
+    client = MagicMock(spec=AlpacaClient)
     # Default mock behavior to avoid errors during OrderManager.__init__ recovery
     client.get_open_orders.return_value = []
     client.get_positions.return_value = {"positions": [], "cash": {}}
@@ -103,8 +103,8 @@ def test_place_trade_success(mock_client, temp_log_dir) -> None:
 
 
 def test_place_trade_api_failure(mock_client, temp_log_dir) -> None:
-    """Verify that WebullAPIError marks trade state as FAILED and doesn't propagate error."""
-    mock_client.place_order.side_effect = WebullAPIError("Margin violation: insufficient funds")
+    """Verify that AlpacaAPIError marks trade state as FAILED and doesn't propagate error."""
+    mock_client.place_order.side_effect = AlpacaAPIError("Margin violation: insufficient funds")
     
     oms = OrderManager(client=mock_client, account_id="acc123", log_dir=str(temp_log_dir))
     
@@ -128,8 +128,8 @@ def test_place_trade_connection_retry(mock_sleep, mock_client, temp_log_dir) -> 
     """Verify that place_trade retries on transient connection error and succeeds if connection is restored."""
     # First 2 calls fail with ConnectionError, 3rd succeeds
     mock_client.place_order.side_effect = [
-        WebullConnectionError("Timeout"),
-        WebullConnectionError("Host unreachable"),
+        AlpacaConnectionError("Timeout"),
+        AlpacaConnectionError("Host unreachable"),
         {"order_id": "broker_id_retry"},
     ]
     
@@ -151,12 +151,12 @@ def test_place_trade_connection_retry(mock_sleep, mock_client, temp_log_dir) -> 
 
 @patch("time.sleep", return_value=None)
 def test_place_trade_connection_persistent_failure(mock_sleep, mock_client, temp_log_dir) -> None:
-    """Verify that place_trade propagates WebullConnectionError after maximum retries expire, leaving state as PENDING_SUBMIT."""
-    mock_client.place_order.side_effect = WebullConnectionError("Persistent connection failure")
+    """Verify that place_trade propagates AlpacaConnectionError after maximum retries expire, leaving state as PENDING_SUBMIT."""
+    mock_client.place_order.side_effect = AlpacaConnectionError("Persistent connection failure")
     
     oms = OrderManager(client=mock_client, account_id="acc123", log_dir=str(temp_log_dir))
     
-    with pytest.raises(WebullConnectionError):
+    with pytest.raises(AlpacaConnectionError):
         oms.place_trade(symbol="MSFT", side="SELL", qty=5)
         
     assert mock_client.place_order.call_count == 5

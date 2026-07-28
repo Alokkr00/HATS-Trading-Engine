@@ -39,12 +39,12 @@ _SDK_LOGGING_CONFIGURED: bool = False
 
 
 def configure_sdk_logging(log_dir: Path | None = None) -> None:
-    """Intercept the Webull SDK logger and bind it to a RotatingFileHandler to prevent disk filling."""
+    """Intercept the Alpaca SDK logger and bind it to a RotatingFileHandler to prevent disk filling."""
     global _SDK_LOGGING_CONFIGURED
     if _SDK_LOGGING_CONFIGURED:
         return
         
-    sdk_logger = logging.getLogger("webull")
+    sdk_logger = logging.getLogger("alpaca")
     sdk_logger.propagate = False
     
     # Remove existing handlers
@@ -54,7 +54,7 @@ def configure_sdk_logging(log_dir: Path | None = None) -> None:
     resolved_log_dir = log_dir or _LOG_DIR
     _ensure_log_dir(resolved_log_dir)
     
-    sdk_log_path = resolved_log_dir / "webull_sdk.log"
+    sdk_log_path = resolved_log_dir / "alpaca_sdk.log"
     formatter = logging.Formatter(_DEFAULT_FMT, datefmt=_DEFAULT_DATE_FMT)
     
     sdk_handler = RotatingFileHandler(

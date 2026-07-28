@@ -1,6 +1,7 @@
-"""Execution module for Webull OpenAPI client wrapper.
+"""Execution module for Alpaca Trading API client wrapper.
 """
 
-from src.execution.webull_client import WebullClient
+from src.execution.alpaca_client import AlpacaClient, AlpacaAPIError, AlpacaConnectionError
 
-__all__ = ["WebullClient"]
+__all__ = ["AlpacaClient", "AlpacaAPIError", "AlpacaConnectionError"]
+

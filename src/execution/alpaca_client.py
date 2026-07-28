@@ -36,11 +36,6 @@ class AlpacaAPIError(AlpacaError):
         self.error_code = error_code
 
 
-# Re-export as the same names the OMS imports so we can swap with minimal changes
-WebullConnectionError = AlpacaConnectionError
-WebullAPIError = AlpacaAPIError
-
-
 class AlpacaClient:
     """Wraps the alpaca-py TradingClient to match the OMS broker interface.
 

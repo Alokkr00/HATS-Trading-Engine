@@ -1,7 +1,7 @@
 """Order Management System (OMS) for managing trade execution, state, and recovery.
 
 This module provides the OrderManager class, which manages execution states,
-writes and maintains the local OMS state file, interacts with WebullClient,
+writes and maintains the local OMS state file, interacts with AlpacaClient,
 handles rate-limiting and connection errors with exponential backoff, logs
 transactions to Parquet/JSON, and implements crash recovery on startup.
 """
@@ -17,7 +17,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TypeVar
 
-from src.execution.alpaca_client import AlpacaClient, AlpacaAPIError as WebullAPIError, AlpacaConnectionError as WebullConnectionError
+from src.execution.alpaca_client import AlpacaClient, AlpacaAPIError, AlpacaConnectionError
 from src.execution.db_manager import DatabaseManager
 from src.execution.sector_resolver import SectorResolver
 from src.utils.logger import get_logger
@@ -33,15 +33,15 @@ class OrderManager:
 
     def __init__(
         self,
-        client: WebullClient,
+        client: AlpacaClient,
         account_id: str,
         log_dir: str = "data/execution",
     ) -> None:
         """Initialize the OrderManager.
 
         Args:
-            client: WebullClient wrapper instance.
-            account_id: Webull target account ID.
+            client: AlpacaClient wrapper instance.
+            account_id: Alpaca target account ID.
             log_dir: Directory path for saving execution state and transaction logs.
         """
         self.client = client
@@ -196,8 +196,8 @@ class OrderManager:
             The result of func.
 
         Raises:
-            WebullConnectionError: If the error persists after all retries.
-            WebullAPIError: Propagated without retries as it represents non-transient API issues.
+            AlpacaConnectionError: If the error persists after all retries.
+            AlpacaAPIError: Propagated without retries as it represents non-transient API issues.
             Exception: Any other unexpected exception.
         """
         max_retries = 5
@@ -207,12 +207,12 @@ class OrderManager:
         for attempt in range(1, max_retries + 1):
             try:
                 return func(*args, **kwargs)
-            except (WebullConnectionError, ConnectionError, TimeoutError) as e:
+            except (AlpacaConnectionError, ConnectionError, TimeoutError) as e:
                 if attempt == max_retries:
                     logger.critical(
                         f"Transient connection error persisted after {max_retries} attempts: {e}"
                     )
-                    raise WebullConnectionError(
+                    raise AlpacaConnectionError(
                         f"Transient connection error persisted after {max_retries} attempts"
                     ) from e
 
@@ -222,10 +222,10 @@ class OrderManager:
                     f"Transient connection error: {e}. Retrying attempt {attempt}/{max_retries} in {delay:.2f}s..."
                 )
                 time.sleep(delay)
-            except WebullAPIError as e:
+            except AlpacaAPIError as e:
                 # Do not retry on non-transient API exceptions (margin violation, invalid order size, etc.)
                 # But rate limits are API errors; if they are rate limit errors, we could also log and fail
-                logger.debug(f"Non-transient WebullAPIError encountered: {e}")
+                logger.debug(f"Non-transient AlpacaAPIError encountered: {e}")
                 raise
 
     def place_trade(
@@ -236,7 +236,7 @@ class OrderManager:
         price: float | None = None,
         stop_price: float | None = None,
     ) -> str | None:
-        """Validate, log intent, and place a trade with Webull.
+        """Validate, log intent, and place a trade with Alpaca.
 
         Args:
             symbol: Ticker symbol (e.g. 'AAPL').
@@ -306,7 +306,7 @@ class OrderManager:
             
             order_id = response.get("order_id")
             if not order_id:
-                raise WebullAPIError("Broker response did not contain 'order_id'")
+                raise AlpacaAPIError("Broker response did not contain 'order_id'")
                 
             # Update state on success
             order_entry["order_id"] = order_id
@@ -318,7 +318,7 @@ class OrderManager:
             logger.info(f"Order submitted successfully: {client_order_id} -> broker order_id: {order_id} in {latency_ms}ms")
             return order_id
 
-        except WebullAPIError as api_err:
+        except AlpacaAPIError as api_err:
             # API failure (margin violation, invalid order size, rate limit etc.)
             logger.critical(
                 f"API Error placing trade for {symbol} ({side_upper} {qty}): {api_err}. Marking order as FAILED.",
@@ -480,7 +480,7 @@ class OrderManager:
             logger.error(f"Error writing transaction log Parquet: {e}")
 
     def sync_orders(self) -> None:
-        """Fetch open orders from Webull and update local tracking states."""
+        """Fetch open orders from Alpaca and update local tracking states."""
         try:
             open_orders = self._execute_with_retry(self.client.get_open_orders, self.account_id)
         except Exception as e:
@@ -508,7 +508,7 @@ class OrderManager:
             broker_order = open_orders_by_id.get(order_id) or open_orders_by_id.get(client_order_id)
 
             if broker_order:
-                # Order is still active on Webull
+                # Order is still active on Alpaca
                 old_status = local_order.get("status")
                 new_status = broker_order.get("status", "SUBMITTED")
                 filled_qty = broker_order.get("filled_qty", 0)
@@ -548,7 +548,7 @@ class OrderManager:
                             local_order["transaction_logged"] = True
                             self._log_transaction(local_order)
                             self.sync_portfolio()
-                    except WebullAPIError as api_err:
+                    except AlpacaAPIError as api_err:
                         logger.error(
                             f"API Error fetching final status for order {order_id}: {api_err}. Marking as FAILED."
                         )
@@ -572,7 +572,7 @@ class OrderManager:
             self._save_state()
 
     def sync_portfolio(self) -> dict[str, Any]:
-        """Query Webull for positions and cash and update local tracking state.
+        """Query Alpaca for positions and cash and update local tracking state.
 
         Returns:
             The synchronized portfolio state dictionary containing positions and cash.
@@ -595,14 +595,14 @@ class OrderManager:
                 "updated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
             }
             self._save_state()
-            logger.info("Portfolio state successfully synchronized with Webull.")
+            logger.info("Portfolio state successfully synchronized with Alpaca.")
             return self.state["portfolio"]
         except Exception as e:
             logger.error(f"Failed to sync portfolio state: {e}")
             raise
 
     def recover_state(self) -> None:
-        """On initialization, check outstanding state and reconcile it with Webull.
+        """On initialization, check outstanding state and reconcile it with Alpaca.
 
         Resolves orders left in PENDING_SUBMIT, SUBMITTED, or PARTIALLY_FILLED states
         to guarantee no duplicates and ensure local tracking is consistent.
@@ -670,7 +670,7 @@ class OrderManager:
                     f"Recovered order {client_order_id} in active state: {status} -> {new_status} (Filled: {filled_qty})"
                 )
             else:
-                # Order not active on Webull. Reconcile final status.
+                # Order not active on Alpaca. Reconcile final status.
                 if order_id:
                     try:
                         order_detail = self._execute_with_retry(
@@ -690,7 +690,7 @@ class OrderManager:
                         if final_status == "FILLED":
                             self._log_transaction(local_order)
 
-                    except WebullAPIError as api_err:
+                    except AlpacaAPIError as api_err:
                         logger.error(
                             f"API Error recovering order {order_id}: {api_err}. Marking as FAILED."
                         )
