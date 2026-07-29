@@ -55,6 +55,15 @@ Originally started as an experimental trading bot, the project has evolved into 
 
 ---
 
+## 🏛️ System Design Trade-offs & Architecture
+
+* **Batch Cycle vs. Streaming Architecture**: H.A.T.S is intentionally built around scheduled batch execution cycles (`python -m src.main --interval 1d`) rather than a real-time HFT streaming pipeline. This aligns with the requirements of daily swing trading, minimizing memory footprint and operational complexity.
+* **Single Authoritative State Store**: All order states, positions, and risk audit logs are persisted in an ACID-compliant SQLite database equipped with DDL-level immutability triggers. JSON files serve only as exported state snapshots.
+* **Decoupled Risk Gate Interface**: The risk engine enforces a 15-scenario stress matrix before any order is dispatched. The risk module interface is decoupled from the OMS, allowing more complex multi-factor or Monte Carlo risk models to be plugged in.
+* **Modular Strategy Architecture**: Strategies inherit from a common `BaseStrategy` interface, separating signal generation from order sizing and execution.
+
+---
+
 ## 🔑 Core Features & Design
 
 ### 📊 1. Quantitative Strategies & Sample Backtest Benchmarks
