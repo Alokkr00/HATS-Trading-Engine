@@ -1,4 +1,4 @@
-# Transaction Cost Model — Webull Broker
+# Transaction Cost Model — Alpaca Broker
 
 > **Author:** Lead Quant Researcher
 > **Created:** 2026-07-02
@@ -10,7 +10,7 @@
 
 ## 1. Overview
 
-Webull advertises "commission-free" trading. This does **not** mean trading is free.
+Alpaca advertises "commission-free" trading. This does **not** mean trading is free.
 Every trade incurs:
 
 1. **Bid-ask spread** — the dominant cost for retail
@@ -27,10 +27,10 @@ A strategy that looks good before costs but dies after costs is not a strategy.
 
 | Fee Type | Amount | Notes |
 |----------|--------|-------|
-| Equity commission | **$0.00** | Webull's core value proposition |
+| Equity commission | **$0.00** | Alpaca's core value proposition |
 | Options commission | $0.00 (we don't use options in Sprint 3) | — |
 
-**Caveat:** Webull routes order flow to market makers (PFOF — Payment for Order Flow).
+**Caveat:** Alpaca routes order flow to market makers (PFOF — Payment for Order Flow).
 This is legal and disclosed, but it means our fills may be slightly worse than on
 exchanges with direct market access. The cost of PFOF is embedded in wider effective
 spreads. We capture this in our spread model below.
@@ -367,16 +367,16 @@ it will survive real-world conditions.
 
 ## 9. Comparison to Alternatives
 
-For context, here's how Webull's cost structure compares:
+For context, here's how Alpaca's cost structure compares:
 
 | Broker | Commission | Est. Spread Cost | Total RT Cost |
 |--------|-----------|-----------------|---------------|
-| **Webull** | $0 | 3-7 bps (PFOF) | **5-10 bps** |
+| **Alpaca** | $0 | 3-7 bps (PFOF) | **5-10 bps** |
 | Interactive Brokers (tiered) | $0.005/share (~1 bps) | 1-3 bps (direct routing) | **3-6 bps** |
 | Schwab | $0 | 3-5 bps (PFOF) | **5-8 bps** |
 | Institutional (DMA) | 1-3 bps | 0.5-2 bps | **2-5 bps** |
 
-Webull is competitive with other retail brokers. The main disadvantage vs.
+Alpaca is competitive with other retail brokers. The main disadvantage vs.
 institutional is PFOF routing, which adds ~1-2 bps of hidden cost. For our position
 sizes ($5K-$15K), this is a reasonable tradeoff.
 
@@ -404,7 +404,7 @@ sizes ($5K-$15K), this is a reasonable tradeoff.
 
 ## Appendix: Fee Schedule Sources
 
-- Webull fee schedule: https://www.webull.com/pricing
+- Alpaca fee schedule: https://www.alpaca.com/pricing
 - SEC fee rate (updated semiannually): https://www.sec.gov/fee-rate-advisory
 - FINRA TAF: https://www.finra.org/rules-guidance/key-topics/trading-activity-fee
 - Frazzini, Israel & Moskowitz (2015). *Trading Costs of Asset Pricing Anomalies.* (Institutional slippage estimates)

@@ -25,7 +25,7 @@ The test suite was run in segments to isolate performance bottlenecks (such as l
 | `tests/test_smoke.py` | Unit | 8 | **PASS** | 1.50s | Verifies version, logger idempotency, formatting, and trading calendars. |
 | `tests/test_backtest/` | Unit | 11 | **PASS** | 51.91s | Verifies transaction cost model, spread widening, backtest execution loop, and out-of-sample walk-forward split boundaries. |
 | `tests/test_strategy/` | Unit | 25 | **PASS** | 48.26s | Verifies BaseStrategy, PositionSizer risk rules, SignalGenerator (any/all/majority/custom), and look-ahead bias validation engine. |
-| `tests/test_dashboard/`<br>`tests/test_execution/` | Unit / Mock | 32 | **PASS** | 33.00s | Verifies FastAPI endpoints, WebullClient mocks, OMS state transitions, and broker API parameter mappings. (Includes the new fallback unit test). |
+| `tests/test_dashboard/`<br>`tests/test_execution/` | Unit / Mock | 32 | **PASS** | 33.00s | Verifies FastAPI endpoints, AlpacaClient mocks, OMS state transitions, and broker API parameter mappings. (Includes the new fallback unit test). |
 | `tests/test_data/` (excluding fetcher) | Unit | 16 | **PASS** | 62.42s | Verifies DataCleaner timezone conversion, duplicates removal, gap filling, and DataStore (Parquet serialization/merges/slicing). |
 | `tests/test_data/test_fetcher.py` | Integration | 7 | **PASS** | 32.31s | Hits the live Yahoo Finance API to verify data fetching and cleaning on real-world assets. |
 | **Total Test Suite** | | **99** | **PASS** | **~229s** | **All tests pass successfully.** |
@@ -45,7 +45,7 @@ The state transition machine in `src/execution/oms.py` was audited for boundary 
 
 2. **Split-Brain Network Failure Recovery**:
    - If the network cuts out *after* the broker accepts the order but *before* the bot receives the broker order ID, the order remains in `PENDING_SUBMIT` without a broker `order_id`.
-   - On reboot or sync, `recover_state()` queries the open orders list on Webull.
+   - On reboot or sync, `recover_state()` queries the open orders list on Alpaca.
    - It matches the order using the locally generated `client_order_id`. If found, it recovers the broker `order_id` and updates the status to the broker's active state (e.g. `PARTIALLY_FILLED`).
    - If the order is *not* found in the broker's open list or history, it is marked as `FAILED` locally with a warning to prevent double-submissions, ensuring maximum execution safety.
 
@@ -56,7 +56,7 @@ The logging system in `src/utils/logger.py` and the file persistence layer in `s
    - The state file (`oms_state.json`) is saved atomically. The bot writes to a temporary file (`.json.tmp`) first and uses `os.replace` to overwrite the existing file. This ensures that the state file is never left half-written or corrupted if a sudden system crash occurs.
 
 2. **Bounded Log Files**:
-   - `RotatingFileHandler` is used for all logs (module-specific and unified `trading_bot.log`) with a limit of 10 MB and 5 backups. This keeps disk usage strictly bounded. Webull SDK logs are intercepted and routed to `webull_sdk.log` with the same rotation guarantees to prevent unmonitored disk filling.
+   - `RotatingFileHandler` is used for all logs (module-specific and unified `trading_bot.log`) with a limit of 10 MB and 5 backups. This keeps disk usage strictly bounded. Alpaca SDK logs are intercepted and routed to `alpaca_sdk.log` with the same rotation guarantees to prevent unmonitored disk filling.
 
 3. **Multi-Format Transaction Logging**:
    When an order is `FILLED`, it is logged in three concurrent ways to maximize developer usability and ingestion speed:
@@ -89,4 +89,4 @@ The logging system in `src/utils/logger.py` and the file persistence layer in `s
    If an order transitions to `FAILED` in the OMS due to a critical API error (e.g., Margin Violation), an email/Slack notification should be dispatched immediately to alert the operations team.
 
 3. **Rate-Limit Guardrails**:
-   Webull Open API has rate limits (e.g., requests per minute). Although `_execute_with_retry` retries on connection issues, it should explicitly check for HTTP `429` (Too Many Requests) or broker rate limit codes, and apply a longer backoff to avoid account suspension or order rejections.
+   Alpaca Open API has rate limits (e.g., requests per minute). Although `_execute_with_retry` retries on connection issues, it should explicitly check for HTTP `429` (Too Many Requests) or broker rate limit codes, and apply a longer backoff to avoid account suspension or order rejections.

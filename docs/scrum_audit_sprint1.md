@@ -50,9 +50,9 @@ The Sprint 1 deliverables meet the required standards for a production-grade alg
 
 ---
 
-## 4. Alignment with US Market & Webull Target
+## 4. Alignment with US Market & Alpaca Target
 
-* **Webull Cost Modeling:** `docs/cost_model.md` incorporates realistic retail execution realities. It models the implicit costs of PFOF routing (widening spreads), models slippage at a conservative 3 bps per side (6 bps round-trip), and details SEC/FINRA regulatory transaction fees. This ensures that backtested strategies will not report unrealistic "frictionless" profits.
+* **Alpaca Cost Modeling:** `docs/cost_model.md` incorporates realistic retail execution realities. It models the implicit costs of PFOF routing (widening spreads), models slippage at a conservative 3 bps per side (6 bps round-trip), and details SEC/FINRA regulatory transaction fees. This ensures that backtested strategies will not report unrealistic "frictionless" profits.
 * **Exchange Hours & Holidays:** The helper utilities are closely aligned with NYSE rule specifications. The intraday window of 09:30 to 16:00 ET is correctly hardcoded, and the holiday schedules are confirmed against SIFMA/NYSE calendars.
 
 ---

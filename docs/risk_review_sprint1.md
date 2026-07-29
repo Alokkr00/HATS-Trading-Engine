@@ -61,7 +61,7 @@ Known issues include:
 2. **Empty-response guard:** If `df` is empty or has < 1 row, raise, do not
    return silently.
 3. **Cross-validation (recommended for live):** Spot-check a random recent
-   close against a second source (e.g., Webull's own quote API) before
+   close against a second source (e.g., Alpaca's own quote API) before
    accepting a full dataset.
 4. **Pin yfinance version** in `requirements.txt` and test on every upgrade.
 5. **Retry with back-off** on HTTP errors; after 3 retries, flag symbol as
@@ -341,7 +341,7 @@ confirm:
 
 | # | Recommendation |
 |---|----------------|
-| R13 | Cross-validate prices against a second source (Webull quote API) |
+| R13 | Cross-validate prices against a second source (Alpaca quote API) |
 | R14 | Add historical constituent lists for survivorship-bias-free backtests |
 | R15 | Implement incremental fetch with de-duplication and overlap handling |
 | R16 | Add data lineage tracking (source → raw → cleaned → stored, with hashes) |

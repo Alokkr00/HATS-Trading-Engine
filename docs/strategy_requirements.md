@@ -10,7 +10,7 @@
 ## 1. Executive Summary
 
 We plan to evaluate three systematic strategies for US equities and ETFs traded via
-Webull. **None of these strategies are novel.** MA crossovers, RSI mean-reversion, and
+Alpaca. **None of these strategies are novel.** MA crossovers, RSI mean-reversion, and
 Bollinger Band strategies are among the most widely studied retail setups. The academic
 literature is mixed-to-negative on their profitability after costs in modern markets
 (see Bajgrowicz & Scaillet 2012, Sullivan, Timmermann & White 1999, etc.).
@@ -140,7 +140,7 @@ If SMA shows promise, we can test EMA as a robustness check.
 
 **Short Entry:** NONE. We are long-only for Sprint 3.
 - Shorting introduces borrow costs, short squeeze risk, and margin complexity
-- Webull's short availability is inconsistent
+- Alpaca's short availability is inconsistent
 - Long-only is the conservative starting point
 
 #### Exit Rules
@@ -405,7 +405,7 @@ position_size  = min(position_size, max_position / entry_price)
 - Minimum position: 1 share (no fractional for simplicity)
 - If position_size < 1 share, skip the trade
 
-For backtesting, assume a **$100,000 starting account** (realistic for Webull active
+For backtesting, assume a **$100,000 starting account** (realistic for Alpaca active
 trader).
 
 ---
@@ -416,7 +416,7 @@ Detailed in companion document `docs/cost_model.md`. Summary:
 
 | Component | Assumption |
 |-----------|-----------|
-| Commission | $0 (Webull) |
+| Commission | $0 (Alpaca) |
 | Bid-ask spread (large cap) | 1 bps round-trip |
 | Bid-ask spread (mid cap) | 3-5 bps round-trip |
 | Slippage | 3-5 bps per trade |

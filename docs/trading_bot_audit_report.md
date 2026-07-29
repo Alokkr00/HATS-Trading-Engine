@@ -109,7 +109,7 @@ To upgrade this codebase from a retail-grade framework to an institutional-grade
 1. **Strengthen State Reconciliations**:
    - Build a robust websocket connection instead of polling `/api/state` every 5 seconds to reduce broker/server overhead.
 2. **Add Transaction Cost Models**:
-   - Incorporate Webull commission/fees and estimated slippage (e.g., half-bid-ask spread) into the equity curve and performance statistics calculations.
+   - Incorporate Alpaca commission/fees and estimated slippage (e.g., half-bid-ask spread) into the equity curve and performance statistics calculations.
 
 ### D. Testing Enhancements
 1. **Add Contract/Integration Tests**:

@@ -6,7 +6,7 @@
 ---
 
 ## 1. Executive Summary
-This report evaluates the user experience, visual layout, and interactive features of the new web dashboard for the Antigravity Algorithmic Trading Bot. The dashboard provides real-time monitoring of US equities and ETF trading operations, integrating with Webull OpenAPI endpoints and the local Order Management System (OMS).
+This report evaluates the user experience, visual layout, and interactive features of the new web dashboard for the Antigravity Algorithmic Trading Bot. The dashboard provides real-time monitoring of US equities and ETF trading operations, integrating with Alpaca Trading API endpoints and the local Order Management System (OMS).
 
 Overall, the dashboard offers a **premium, production-grade interface** utilizing modern dark-theme glassmorphism. Core operational controls (the **Bot Toggle Switch**, **Emergency Flatten** action, and **Sync** mechanism) are logically integrated and fully functional, successfully passing both unit/integration tests and dynamic API validations.
 

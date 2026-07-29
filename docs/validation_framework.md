@@ -273,7 +273,7 @@ All performance metrics MUST be computed **after** transaction costs. Default mo
 Per-trade cost = commission + slippage + market impact
 
 Assumptions (conservative):
-  Commission:    $0.00 per share (Webull, commission-free)
+  Commission:    $0.00 per share (Alpaca, commission-free)
   Slippage:      0.05% of trade value (half the bid-ask spread)
   Market impact: 0.02% of trade value (small account assumption)
   Total:         ~0.07% per side → ~0.14% round-trip
