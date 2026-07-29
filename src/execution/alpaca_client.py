@@ -1,6 +1,6 @@
 """Alpaca paper/live trading client wrapper.
 
-Drop-in replacement for WebullClient. The OMS calls three methods:
+The OMS calls three methods:
     client.place_order(account_id, symbol, side, qty, price, stop_price, client_order_id)
     client.get_order(order_id)
     client.get_positions(account_id)

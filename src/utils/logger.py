@@ -129,7 +129,7 @@ def setup_logger(
         resolved_log_dir = log_dir or _LOG_DIR
         _ensure_log_dir(resolved_log_dir)
 
-        # Ensure Webull SDK logging is intercepted and rotated safely
+        # Ensure Alpaca SDK logging is intercepted and rotated safely
         configure_sdk_logging(resolved_log_dir)
 
         # 1. Module-specific file handler

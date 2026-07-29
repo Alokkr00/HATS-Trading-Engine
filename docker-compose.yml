@@ -10,8 +10,9 @@ services:
     volumes:
       - hats-data:/app/data
     environment:
-      - WEBULL_DRY_RUN=True
-      - WEBULL_ACCOUNT_ID=mock_webull_account
+      - APCA_API_KEY_ID=${APCA_API_KEY_ID}
+      - APCA_API_SECRET_KEY=${APCA_API_SECRET_KEY}
+      - ALPACA_PAPER=1
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
     restart: always

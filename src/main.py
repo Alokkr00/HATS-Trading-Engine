@@ -618,7 +618,7 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
         logger.error(f"Failed to write engine status file: {ese}")
 
     # 6. Reconcile working orders
-    logger.info("Synchronizing active order states with Webull...")
+    logger.info("Synchronizing active order states with Alpaca...")
     oms.sync_orders()
     msg = f"✅ H.A.T.S Systematic trading cycle ({interval}) completed successfully."
     logger.info(msg)

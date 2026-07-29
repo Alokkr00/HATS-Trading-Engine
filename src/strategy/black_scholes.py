@@ -56,7 +56,7 @@ def calculate_option_price_and_delta(
 
 
 def parse_option_symbol(symbol: str, current_time: dt.datetime | None = None) -> tuple[str, str, float, float]:
-    """Parse standard yfinance/Webull option symbol to extract parameters.
+    """Parse standard OCC option symbol to extract parameters.
     
     Example: TSLA260717C00392500 -> ('TSLA', 'C', 392.5, T_in_years)
     """
