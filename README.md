@@ -1,6 +1,7 @@
 # H.A.T.S — Hedge & Algorithmic Trading System
 
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
+[![Build Status](https://github.com/Alokkr00/HATS-Trading-Engine/actions/workflows/tests.yml/badge.svg)](https://github.com/Alokkr00/HATS-Trading-Engine/actions)
 [![Tests](https://img.shields.io/badge/tests-153%20passed-brightgreen.svg)](https://github.com/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
@@ -56,7 +57,15 @@ Originally started as an experimental trading bot, the project has evolved into 
 
 ## 🔑 Core Features & Design
 
-### 📊 1. Quantitative Strategies
+### 📊 1. Quantitative Strategies & Sample Backtest Benchmarks
+The framework evaluates multiple strategy modules against historical daily bars with transaction cost modeling (1.5 bps spread + 3.0 bps slippage per side):
+
+| Strategy | Asset | CAGR | Sharpe Ratio | Max Drawdown | Win Rate | Trades |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **Donchian Breakout (20-day)** | SPY (2021-2025) | **12.36%** | **0.99** | -20.99% | 83.33% | 6 |
+| **RSI Mean Reversion (14-day)** | SPY (2021-2025) | **0.59%** | **0.83** | -0.05% | 100.0% | 1 |
+| **MA Crossover (20/50-day)** | SPY (2021-2025) | -0.10% | -0.03 | -4.29% | 50.00% | 2 |
+
 * **Statistical Arbitrage / Pairs Trading**:
   * Computes a rolling OLS hedge ratio ($\beta$) between cointegrated pairs (e.g., `JPM`-`BAC`, `SPY`-`QQQ`).
   * Trades spread Z-Score deviations ($Z = \frac{\text{Spread} - \mu}{\sigma}$) on a market-neutral basis.
@@ -92,7 +101,7 @@ Originally started as an experimental trading bot, the project has evolved into 
 * **Web Framework**: `FastAPI`, `uvicorn`, `websockets`
 * **Broker SDK**: `alpaca-py` (Alpaca Trading API)
 * **Database**: `SQLite3` + `SQLAlchemy` (with custom DDL triggers)
-* **Testing**: `pytest`, `pytest-cov` (161 unit & integration tests)
+* **Testing**: `pytest`, `pytest-cov` (153 unit & integration tests)
 
 ---
 
@@ -140,7 +149,7 @@ DASHBOARD_PASSWORD=hats_secure_pass
 ```bash
 pytest
 ```
-*Output: 161 passed in ~50s.*
+*Output: 153 passed in ~90s.*
 
 ### 4. Run a Systematic Trading Cycle
 
