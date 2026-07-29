@@ -27,5 +27,12 @@ jobs:
     - name: Run PyTest
       env:
         PYTHONPATH: .
+        APCA_API_KEY_ID: mock_key_id_for_ci_testing
+        APCA_API_SECRET_KEY: mock_secret_key_for_ci_testing
+        ALPACA_PAPER: "1"
+        DASHBOARD_USERNAME: admin
+        DASHBOARD_PASSWORD: hats_secure_pass
+        TELEGRAM_BOT_TOKEN: mock_token_for_ci
+        TELEGRAM_CHAT_ID: mock_chat_id_for_ci
       run: |
         pytest -v
