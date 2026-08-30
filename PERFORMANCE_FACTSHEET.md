@@ -1,5 +1,5 @@
 # 📊 H.A.T.S Quantitative Strategy Factsheet & Transparency Report
-**Last Updated:** `2026-08-30 11:28 UTC` | **Engine Version:** `v1.2.0-institutional`  
+**Last Updated:** `2026-08-30 11:41 UTC` | **Engine Version:** `v1.2.0-institutional`  
 **Execution Environment:** Alpaca Paper Trading API (`ALPACA_PAPER=1`)  
 
 ---
@@ -16,12 +16,13 @@ To ensure statistical credibility and eliminate overfitting, all strategies in H
 
 | Strategy Model | Benchmark Ticker | In-Sample Sharpe | **Out-of-Sample Sharpe** | **Deflated Sharpe (DSR)** | **CVaR (95%)** | Profit Factor | Status |
 | :--- | :--- | :---: | :---: | :---: | :---: | :---: | :---: |
+| **Dual Momentum (Antonacci GEM)** | `SPY` | 0.00 | **0.00** | **0.00** | -0.00% | 0.00 | 🟡 VALIDATING |
+| **Volatility-Scaled Trend (AQR TSMOM)** | `QQQ` | 0.00 | **0.00** | **0.00** | -0.00% | 0.00 | 🟡 VALIDATING |
+| **Connors 2-Day RSI Pullback** | `AAPL` | 0.08 | **0.08** | **0.00** | -0.04% | 1.06 | 🟡 VALIDATING |
 | **MACD Histogram Trend** | `SPY` | 0.50 | **0.23** | **0.00** | -0.09% | 1.12 | 🟡 VALIDATING |
-| **RSI Dynamic Mean Reversion** | `QQQ` | 0.04 | **0.00** | **0.00** | -0.00% | 0.00 | 🟡 VALIDATING |
-| **Bollinger Volatility Squeeze** | `AAPL` | 0.46 | **-0.16** | **0.00** | -0.01% | 0.71 | 🟡 VALIDATING |
-| **Pivot Point Intraday Reversion** | `MSFT` | 0.30 | **0.10** | **0.00** | -0.23% | 1.03 | 🟡 VALIDATING |
-| **Donchian Channel Breakout** | `NVDA` | -0.12 | **0.29** | **0.00** | -0.13% | 1.18 | 🟡 VALIDATING |
 | **Sector ETF Momentum Rotation** | `XLK` | 0.44 | **0.37** | **0.00** | -0.09% | 1.19 | 🟡 VALIDATING |
+| **Donchian Channel Breakout** | `NVDA` | -0.12 | **0.29** | **0.00** | -0.13% | 1.18 | 🟡 VALIDATING |
+| **Pivot Point Intraday Reversion** | `MSFT` | 0.30 | **0.10** | **0.00** | -0.23% | 1.03 | 🟡 VALIDATING |
 
 * **DSR Threshold**: A Deflated Sharpe Ratio > 0.50 indicates statistically significant edge after penalizing selection bias.
 * **CVaR (95%)**: Represents the expected tail loss on the worst 5% of trading days.

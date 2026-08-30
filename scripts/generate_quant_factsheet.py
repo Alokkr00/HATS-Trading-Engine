@@ -28,6 +28,9 @@ from src.strategy.strategies import (
     SectorMomentumStrategy,
     BreadthThrustReversionStrategy,
 )
+from src.strategy.dual_momentum import DualMomentumStrategy
+from src.strategy.time_series_momentum import VolatilityScaledTrendStrategy
+from src.strategy.connors_rsi import ConnorsMeanReversionStrategy
 from src.data.fetcher import DataFetcher
 from src.data.cleaner import DataCleaner
 from src.data.store import DataStore
@@ -36,8 +39,6 @@ from src.execution.reconciliation import BrokerReconciler
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("FactsheetGenerator")
-
-PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 
 
 def generate_synthetic_data(symbol: str, n_bars: int = 756) -> pd.DataFrame:
@@ -71,12 +72,13 @@ def generate_synthetic_data(symbol: str, n_bars: int = 756) -> pd.DataFrame:
 def run_strategy_walk_forward_evaluation() -> list[dict]:
     """Run Walk-Forward Cross-Validation across all core strategies."""
     strategies_to_test = [
+        ("Dual Momentum (Antonacci GEM)", DualMomentumStrategy(name="DualMomentum", config={"check_look_ahead": False}), "SPY"),
+        ("Volatility-Scaled Trend (AQR TSMOM)", VolatilityScaledTrendStrategy(name="VolatilityScaledTrend", config={"check_look_ahead": False}), "QQQ"),
+        ("Connors 2-Day RSI Pullback", ConnorsMeanReversionStrategy(name="ConnorsMeanReversion", config={"check_look_ahead": False}), "AAPL"),
         ("MACD Histogram Trend", MACDHistogramStrategy(name="MACDHistogram", config={"check_look_ahead": False}), "SPY"),
-        ("RSI Dynamic Mean Reversion", RSIMeanReversionStrategy(name="RSIMeanReversion", config={"check_look_ahead": False}), "QQQ"),
-        ("Bollinger Volatility Squeeze", BollingerSqueezeStrategy(name="BollingerSqueeze", config={"check_look_ahead": False}), "AAPL"),
-        ("Pivot Point Intraday Reversion", PivotPointReversionStrategy(name="PivotPointReversion", config={"check_look_ahead": False}), "MSFT"),
-        ("Donchian Channel Breakout", DonchianChannelBreakoutStrategy(name="DonchianBreakout", config={"check_look_ahead": False}), "NVDA"),
         ("Sector ETF Momentum Rotation", SectorMomentumStrategy(name="SectorMomentum", config={"check_look_ahead": False}), "XLK"),
+        ("Donchian Channel Breakout", DonchianChannelBreakoutStrategy(name="DonchianBreakout", config={"check_look_ahead": False}), "NVDA"),
+        ("Pivot Point Intraday Reversion", PivotPointReversionStrategy(name="PivotPointReversion", config={"check_look_ahead": False}), "MSFT"),
     ]
 
     store = DataStore(raw_dir=str(PROJECT_ROOT / "data" / "raw"))

@@ -462,3 +462,32 @@ def add_standard_indicators(df: pd.DataFrame, overwrite: bool = False) -> pd.Dat
         {"kind": "atr", "length": 14},
     ]
     return add_indicators(df, configs, overwrite=overwrite)
+
+
+class _TAHelper:
+    """Convenience wrapper offering pure NumPy/Pandas vectorized indicator methods."""
+
+    @staticmethod
+    def sma(series: pd.Series, length: int = 50) -> pd.Series:
+        """Simple Moving Average."""
+        return series.rolling(window=length, min_periods=1).mean()
+
+    @staticmethod
+    def ema(series: pd.Series, length: int = 20) -> pd.Series:
+        """Exponential Moving Average."""
+        return series.ewm(span=length, adjust=False).mean()
+
+    @staticmethod
+    def rsi(series: pd.Series, length: int = 14) -> pd.Series:
+        """Relative Strength Index."""
+        delta = series.diff()
+        gain = delta.clip(lower=0)
+        loss = -delta.clip(upper=0)
+        avg_gain = gain.ewm(alpha=1.0 / length, adjust=False, min_periods=length).mean()
+        avg_loss = loss.ewm(alpha=1.0 / length, adjust=False, min_periods=length).mean()
+        rs = avg_gain / (avg_loss + 1e-12)
+        rsi = 100.0 - (100.0 / (1.0 + rs))
+        return rsi.fillna(50.0)
+
+
+ta = _TAHelper()

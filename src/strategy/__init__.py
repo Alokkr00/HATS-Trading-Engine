@@ -19,6 +19,9 @@ from src.strategy.strategies import (
     IchimokuCloudStrategy,
     PivotPointReversionStrategy,
 )
+from src.strategy.dual_momentum import DualMomentumStrategy
+from src.strategy.time_series_momentum import VolatilityScaledTrendStrategy
+from src.strategy.connors_rsi import ConnorsMeanReversionStrategy
 from src.strategy.option_selector import select_option
 
 __all__ = [
@@ -30,5 +33,8 @@ __all__ = [
     "BollingerSqueezeStrategy",
     "IchimokuCloudStrategy",
     "PivotPointReversionStrategy",
+    "DualMomentumStrategy",
+    "VolatilityScaledTrendStrategy",
+    "ConnorsMeanReversionStrategy",
     "select_option",
 ]

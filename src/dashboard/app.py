@@ -832,6 +832,9 @@ def run_backtest_endpoint(payload: dict) -> dict[str, Any]:
         LinearRegressionChannelStrategy,
         PairsTradingStrategy,
     )
+    from src.strategy.dual_momentum import DualMomentumStrategy
+    from src.strategy.time_series_momentum import VolatilityScaledTrendStrategy
+    from src.strategy.connors_rsi import ConnorsMeanReversionStrategy
     from src.backtest.engine import BacktestEngine
     from src.backtest.cost import CostModel
     
@@ -850,6 +853,9 @@ def run_backtest_endpoint(payload: dict) -> dict[str, Any]:
         "ZScoreReversion": ZScoreMeanReversionStrategy,
         "LinearRegressionChannel": LinearRegressionChannelStrategy,
         "PairsTrading": PairsTradingStrategy,
+        "DualMomentum": DualMomentumStrategy,
+        "VolatilityScaledTrend": VolatilityScaledTrendStrategy,
+        "ConnorsMeanReversion": ConnorsMeanReversionStrategy,
     }
     
     if strategy_name not in strats:
