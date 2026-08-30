@@ -2,7 +2,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
 [![Build Status](https://github.com/Alokkr00/HATS-Trading-Engine/actions/workflows/tests.yml/badge.svg)](https://github.com/Alokkr00/HATS-Trading-Engine/actions)
-[![Tests](https://img.shields.io/badge/tests-170%20passed-brightgreen.svg)](https://github.com/)
+[![Tests](https://img.shields.io/badge/tests-180%20passed-brightgreen.svg)](https://github.com/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 H.A.T.S is a modular **quantitative trading framework, paper-trading engine, and agentic research copilot** in Python built for systematic research, risk-gating, backtesting, and automated execution on US equities and options via the Alpaca API.
@@ -111,7 +111,7 @@ The AI Copilot is audited using an automated offline evaluation harness (`python
 * **Batch Cycle vs. Streaming Architecture**: H.A.T.S is intentionally built around scheduled batch execution cycles (`python -m src.main --interval 1d`) rather than a real-time HFT streaming pipeline. This aligns with the requirements of daily swing trading, minimizing memory footprint and operational complexity.
 * **Single Authoritative State Store**: All order states, positions, and risk audit logs are persisted in an ACID-compliant SQLite database equipped with DDL-level immutability triggers. JSON files serve only as exported state snapshots.
 * **Decoupled Risk Gate Interface**: The risk engine enforces a 15-scenario stress matrix before any order is dispatched. The risk module interface is decoupled from the OMS, allowing more complex multi-factor or Monte Carlo risk models to be plugged in.
-* **Modular Strategy Architecture**: Strategies inherit from a common `BaseStrategy` interface, separating signal generation from order sizing and execution.�─────────────────────────────────┬────────────────────────────────────┘
+* **Modular Strategy Architecture**: Strategies inherit from a common `BaseStrategy` interface, separating signal generation from order sizing and execution.─────────────────────────────────┬────────────────────────────────────┘
                                      │
                     ┌────────────────┴────────────────┐
                     ▼                                 ▼

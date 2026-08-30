@@ -50,9 +50,34 @@ class CostModel:
     All cost rates in basis points (bps). 1 bps = 0.01% = 0.0001.
     """
     spread_bps: float       # Half-spread per side (bps)
-    slippage_bps: float     # Slippage per side (bps)
+    slippage_bps: float     # Fixed baseline slippage per side (bps)
     sec_fee_per_million: float = 8.00   # SEC fee on sells per million dollars
     finra_per_share: float = 0.000166   # FINRA TAF on sells per share
+    market_impact_eta: float = 0.10     # Square-root market impact coefficient
+
+    def calculate_market_impact_bps(
+        self,
+        shares: float,
+        adv: float,
+        daily_vol: float = 0.015,
+    ) -> float:
+        """Calculates non-linear square-root market impact in basis points.
+
+        Formula: Impact (bps) = eta * daily_vol * sqrt(shares / ADV) * 10,000
+
+        Args:
+            shares: Order quantity in shares.
+            adv: 20-day Average Daily Volume in shares.
+            daily_vol: Daily asset return volatility (e.g. 0.015 for 1.5% daily vol).
+
+        Returns:
+            Market impact in basis points (bps).
+        """
+        if adv <= 0 or shares <= 0:
+            return 0.0
+        participation_rate = max(0.0, shares / adv)
+        impact_pct = self.market_impact_eta * daily_vol * np.sqrt(participation_rate)
+        return float(impact_pct * 10_000.0)
 
     def round_trip_cost_bps(self, vix: float | None = None) -> float:
         """Total round-trip cost in basis points, potentially VIX-conditioned.
