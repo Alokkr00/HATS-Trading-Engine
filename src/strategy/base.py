@@ -119,7 +119,7 @@ class BaseStrategy(ABC):
             if adx_cols:
                 adx_col = adx_cols[0]
                 adx_threshold = self.config.get("adx_filter_threshold", 20.0)
-                mask_trendless = res_df[adx_col] < adx_threshold
+                mask_trendless = (res_df[adx_col] < adx_threshold) | res_df[adx_col].isna()
                 
                 # Neutralize signals when trend strength is weak (ADX < threshold)
                 res_df.loc[mask_trendless, "signal"] = 0

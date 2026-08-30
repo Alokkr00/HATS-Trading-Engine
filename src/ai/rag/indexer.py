@@ -19,6 +19,12 @@ logger = logging.getLogger(__name__)
 class FastLocalEmbeddingFunction(EmbeddingFunction[Documents]):
     """Fast, offline deterministic embedding function for zero-dependency vector indexing."""
 
+    def __init__(self) -> None:
+        super().__init__()
+
+    def name(self) -> str:
+        return "fast_local_embedding"
+
     def __call__(self, input: Documents) -> Embeddings:
         embeddings = []
         for text in input:
@@ -45,11 +51,25 @@ class RAGIndexer:
             path=str(self.persist_dir),
             settings=Settings(anonymized_telemetry=False),
         )
-        self.collection = self.client.get_or_create_collection(
-            name="hats_research_kb",
-            embedding_function=self.embedding_fn,
-            metadata={"description": "H.A.T.S Quantitative Strategy Docs & Audit Records"}
-        )
+        try:
+            self.collection = self.client.get_or_create_collection(
+                name="hats_research_kb",
+                embedding_function=self.embedding_fn,
+                metadata={"description": "H.A.T.S Quantitative Strategy Docs & Audit Records"}
+            )
+        except Exception as e:
+            if "embedding function" in str(e).lower() or "conflict" in str(e).lower():
+                try:
+                    self.client.delete_collection(name="hats_research_kb")
+                except Exception:
+                    pass
+                self.collection = self.client.get_or_create_collection(
+                    name="hats_research_kb",
+                    embedding_function=self.embedding_fn,
+                    metadata={"description": "H.A.T.S Quantitative Strategy Docs & Audit Records"}
+                )
+            else:
+                raise
 
     def chunk_text(self, text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:
         """Split text into manageable chunks by paragraph or word boundary."""

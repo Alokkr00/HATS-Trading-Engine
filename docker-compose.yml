@@ -10,14 +10,19 @@ services:
     volumes:
       - hats-data:/app/data
     environment:
-      - APCA_API_KEY_ID=${APCA_API_KEY_ID}
-      - APCA_API_SECRET_KEY=${APCA_API_SECRET_KEY}
-      - ALPACA_PAPER=1
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - TZ=America/New_York
+      - APCA_API_KEY_ID=${APCA_API_KEY_ID:-mock_key_id}
+      - APCA_API_SECRET_KEY=${APCA_API_SECRET_KEY:-mock_secret_key}
+      - ALPACA_PAPER=${ALPACA_PAPER:-1}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-mock_gemini_key}
+      - DASHBOARD_USERNAME=${DASHBOARD_USERNAME:-admin}
+      - DASHBOARD_PASSWORD=${DASHBOARD_PASSWORD:-hats_secure_pass}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN:-}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-}
     restart: always
     depends_on:
-      - timescaledb
+      timescaledb:
+        condition: service_healthy
 
   timescaledb:
     image: timescale/timescaledb:latest-pg15
@@ -29,6 +34,11 @@ services:
       - POSTGRES_DB=hats_trading
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres_password_secret
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hats_trading"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     restart: always
 
 volumes:

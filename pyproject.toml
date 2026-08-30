@@ -12,7 +12,6 @@ dependencies = [
     "pyarrow>=14.0.0",
     "python-dotenv>=1.0.0",
     "pyyaml>=6.0",
-    "pandas-ta>=0.3.14b1",
     "alpaca-py>=0.20.0",
     "fastapi>=0.100.0",
     "uvicorn>=0.22.0",
@@ -38,7 +37,7 @@ all = [
 
 [build-system]
 requires = ["setuptools>=68.0", "wheel"]
-build-backend = "setuptools.backends._legacy:_Backend"
+build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -57,4 +56,6 @@ pythonpath = ["."]
 filterwarnings = [
     "ignore:.*copy_on_write.*",
     "ignore:.*starlette.testclient.*",
+    "ignore:.*EmbeddingFunction.*:DeprecationWarning",
+    "ignore:.*websockets.*:DeprecationWarning",
 ]
