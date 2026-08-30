@@ -16,8 +16,13 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
-EXECUTION_DIR = PROJECT_ROOT / "data" / "execution"
+from src.utils.paths import (
+    PROJECT_ROOT,
+    EXECUTION_DIR,
+    DB_PATH,
+    CIRCUIT_BREAKER_PATH,
+    ENGINE_STATUS_PATH,
+)
 
 
 class TelegramListener:

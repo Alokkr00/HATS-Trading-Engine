@@ -28,7 +28,8 @@ class CircuitBreaker:
         self.cooldown_min = cb_cfg.get("cooldown_after_circuit_break_min", 60)
 
         # Persistence path for circuit breaker state
-        self.state_path = Path("data/execution/circuit_breaker_state.json")
+        from src.utils.paths import CIRCUIT_BREAKER_PATH
+        self.state_path = CIRCUIT_BREAKER_PATH
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         self._load_state()
 

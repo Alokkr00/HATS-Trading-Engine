@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
+from src.utils.paths import CHROMA_DB_DIR, COPILOT_DIR
 
 load_dotenv()
 
@@ -21,7 +22,7 @@ class CopilotConfig(BaseModel):
     max_output_tokens: int = Field(2048)
 
     # RAG / Vector Store Settings
-    chroma_db_dir: Path = Field(default_factory=lambda: Path("data/chroma_db"))
+    chroma_db_dir: Path = Field(default_factory=lambda: CHROMA_DB_DIR)
     embedding_model: str = Field("text-embedding-004")
     similarity_top_k: int = Field(4)
 
@@ -31,7 +32,7 @@ class CopilotConfig(BaseModel):
     forced_citations_required: bool = Field(True)
 
     # Logging & Storage
-    copilot_log_dir: Path = Field(default_factory=lambda: Path("data/copilot"))
+    copilot_log_dir: Path = Field(default_factory=lambda: COPILOT_DIR)
 
 
 copilot_config = CopilotConfig()

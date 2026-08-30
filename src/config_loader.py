@@ -15,9 +15,7 @@ from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 
-# Project root is two levels up from src/config_loader.py
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-CONFIG_DIR = PROJECT_ROOT / "config"
+from src.utils.paths import PROJECT_ROOT, CONFIG_DIR
 
 
 def load_settings(path: Path | None = None) -> dict[str, Any]:

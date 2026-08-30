@@ -121,20 +121,20 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Resolve directories dynamically from __file__
-DASHBOARD_DIR = Path(__file__).parent
-TEMPLATES_DIR = DASHBOARD_DIR / "templates"
-STATIC_DIR = DASHBOARD_DIR / "static"
-PROJECT_ROOT = DASHBOARD_DIR.parent.parent.resolve()
-EXECUTION_DIR = PROJECT_ROOT / "data" / "execution"
-LOGS_DIR = PROJECT_ROOT / "logs"
+# Dynamic Platform-Agnostic Directory Resolution
+from src.utils.paths import (
+    PROJECT_ROOT,
+    DASHBOARD_DIR,
+    TEMPLATES_DIR,
+    STATIC_DIR,
+    EXECUTION_DIR,
+    LOGS_DIR,
+    RAW_DATA_DIR,
+    DB_PATH,
+)
 
 # Global Database Manager
-db = DatabaseManager(EXECUTION_DIR / "trading_bot.db")
-
-# Ensure templates and static directories exist
-TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
-STATIC_DIR.mkdir(parents=True, exist_ok=True)
+db = DatabaseManager(DB_PATH)
 
 
 @app.get("/api/auth/token", dependencies=[Depends(authenticate_user)])

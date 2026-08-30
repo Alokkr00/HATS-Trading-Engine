@@ -17,8 +17,10 @@ from src.data.exceptions import StoreError
 
 logger = logging.getLogger(__name__)
 
-# Default storage root (relative to project root)
-_DEFAULT_RAW_DIR = Path("data/raw")
+from src.utils.paths import RAW_DATA_DIR
+
+# Default storage root
+_DEFAULT_RAW_DIR = RAW_DATA_DIR
 
 
 class DataStore:

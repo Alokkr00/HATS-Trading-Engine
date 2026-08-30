@@ -81,8 +81,9 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
     if "^VIX" not in watchlist:
         watchlist.append("^VIX")
         
+    from src.utils.paths import RAW_DATA_DIR, SECTOR_CACHE_PATH, ENGINE_STATUS_PATH
     data_settings = settings.get("data", {})
-    raw_dir = data_settings.get("raw_dir", "data/raw")
+    raw_dir = data_settings.get("raw_dir", str(RAW_DATA_DIR))
     
     # Intraday limits: yfinance allows a maximum of 30-60 days of 15m or 1h data
     if interval == "1d":
@@ -92,7 +93,7 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
         logger.info(f"Applying intraday data length cap of {history_days} days to comply with API retrieval limits.")
 
     # Initialize dynamic sector resolver
-    resolver = SectorResolver(Path(raw_dir).parent / "execution" / "sector_cache.json")
+    resolver = SectorResolver(SECTOR_CACHE_PATH)
 
     # Calculate date ranges
     end_date = dt.datetime.now()
@@ -602,7 +603,7 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
 
     # 5B. Write engine status to persistent file for dashboard alignment
     try:
-        status_file = Path("data/execution/engine_status.json")
+        status_file = ENGINE_STATUS_PATH
         status_file.parent.mkdir(parents=True, exist_ok=True)
         status_data = {
             "regime_state": regime_state.name,

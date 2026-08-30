@@ -4,12 +4,10 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Dict, List
 from src.execution.db_manager import DatabaseManager
+from src.utils.paths import DB_PATH
 
 logger = logging.getLogger(__name__)
-
-DB_PATH = Path("data/execution/trading_bot.db")
 
 
 def _get_db() -> DatabaseManager:

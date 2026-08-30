@@ -27,10 +27,12 @@ from pathlib import Path
 # Constants
 # ---------------------------------------------------------------------------
 
+from src.utils.paths import LOGS_DIR
+
 _DEFAULT_FMT = "%(asctime)s | %(name)s | %(levelname)s | %(message)s"
 _DEFAULT_DATE_FMT = "%Y-%m-%d %H:%M:%S"
 
-_LOG_DIR: Path = Path(__file__).resolve().parents[2] / "logs"  # <project>/logs
+_LOG_DIR: Path = LOGS_DIR
 _MAX_BYTES: int = 10 * 1024 * 1024  # 10 MB
 _BACKUP_COUNT: int = 5
 

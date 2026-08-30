@@ -18,6 +18,28 @@ from src.utils.helpers import (
 from src.utils.logger import get_logger, setup_logger
 from src.utils.rate_limiter import TokenBucketRateLimiter
 from src.utils.notifier import send_telegram_alert
+from src.utils.paths import (
+    PROJECT_ROOT,
+    DATA_DIR,
+    RAW_DATA_DIR,
+    EXECUTION_DIR,
+    REPORTS_DIR,
+    CHARTS_DIR,
+    CHROMA_DB_DIR,
+    COPILOT_DIR,
+    LOGS_DIR,
+    CONFIG_DIR,
+    DASHBOARD_DIR,
+    TEMPLATES_DIR,
+    STATIC_DIR,
+    DB_PATH,
+    CIRCUIT_BREAKER_PATH,
+    ENGINE_STATUS_PATH,
+    SECTOR_CACHE_PATH,
+    OMS_STATE_PATH,
+    ensure_project_dirs,
+    get_project_path,
+)
 
 __all__ = [
     # Logging
@@ -30,8 +52,28 @@ __all__ = [
     # Formatting
     "format_currency",
     "format_pct",
-    # Filesystem
+    # Filesystem & Paths
     "ensure_dir",
+    "PROJECT_ROOT",
+    "DATA_DIR",
+    "RAW_DATA_DIR",
+    "EXECUTION_DIR",
+    "REPORTS_DIR",
+    "CHARTS_DIR",
+    "CHROMA_DB_DIR",
+    "COPILOT_DIR",
+    "LOGS_DIR",
+    "CONFIG_DIR",
+    "DASHBOARD_DIR",
+    "TEMPLATES_DIR",
+    "STATIC_DIR",
+    "DB_PATH",
+    "CIRCUIT_BREAKER_PATH",
+    "ENGINE_STATUS_PATH",
+    "SECTOR_CACHE_PATH",
+    "OMS_STATE_PATH",
+    "ensure_project_dirs",
+    "get_project_path",
     # Throttling
     "TokenBucketRateLimiter",
     # Alerts

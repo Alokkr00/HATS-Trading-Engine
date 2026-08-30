@@ -25,11 +25,9 @@ class WeeklyReportGenerator:
     def __init__(self, db_manager: DatabaseManager | None = None) -> None:
         """Initialize the generator with a database manager."""
         from src.execution.db_manager import DatabaseManager
+        from src.utils.paths import DB_PATH
         if db_manager is None:
-            # Resolve default sqlite database location
-            project_root = Path(__file__).resolve().parent.parent.parent
-            db_path = project_root / "data" / "execution" / "trading_bot.db"
-            self.db = DatabaseManager(str(db_path))
+            self.db = DatabaseManager(str(DB_PATH))
         else:
             self.db = db_manager
 
@@ -146,7 +144,8 @@ class WeeklyReportGenerator:
         wow_win_rate = win_rate - prev_win_rate
         
         # 4. Generate Matplotlib Equity Curve Chart
-        chart_dir = Path("data/reports/charts")
+        from src.utils.paths import CHARTS_DIR
+        chart_dir = CHARTS_DIR
         chart_dir.mkdir(parents=True, exist_ok=True)
         chart_path = chart_dir / f"weekly_chart_{now.strftime('%Y%m%d')}.png"
         
@@ -251,7 +250,8 @@ Report Generated: {now.strftime('%Y-%m-%d %H:%M:%S')} (Week: {start_date.strftim
 """
         
         # Save report file
-        report_dir = Path("data/reports")
+        from src.utils.paths import REPORTS_DIR
+        report_dir = REPORTS_DIR
         report_dir.mkdir(parents=True, exist_ok=True)
         report_file = report_dir / f"weekly_report_{now.strftime('%Y%m%d')}.md"
         
