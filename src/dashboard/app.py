@@ -953,9 +953,12 @@ async def copilot_history(
 
 def main():
     """Main entrypoint for running the server from CLI."""
+    port_default = int(os.getenv("PORT", 8000))
+    host_default = os.getenv("HOST", "0.0.0.0")
+
     parser = argparse.ArgumentParser(description="Run the Trading Bot Dashboard FastAPI server.")
-    parser.add_argument("--port", type=int, default=8000, help="Port to run the dashboard server on.")
-    parser.add_argument("--host", type=str, default="127.0.0.1", help="Host address to run uvicorn on.")
+    parser.add_argument("--port", type=int, default=port_default, help="Port to run the dashboard server on.")
+    parser.add_argument("--host", type=str, default=host_default, help="Host address to run uvicorn on.")
     args = parser.parse_args()
 
     logger.info(f"Starting dashboard server at http://{args.host}:{args.port}")

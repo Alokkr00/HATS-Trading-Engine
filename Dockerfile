@@ -27,5 +27,5 @@ COPY . .
 
 EXPOSE 8000
 
-# Start the dashboard uvicorn server by default
-CMD ["python", "-m", "src.dashboard.app", "--host", "0.0.0.0", "--port", "8000"]
+# Start the dashboard uvicorn server by default (automatically uses $PORT and 0.0.0.0)
+CMD ["python", "-m", "src.dashboard.app"]
