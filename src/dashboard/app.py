@@ -862,6 +862,94 @@ def run_backtest_endpoint(payload: dict) -> dict[str, Any]:
         logger.error(f"Failed to execute backtest in API: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Backtest execution failed: {e}")
 
+# -------------------------------------------------------------------------
+# AI Research Copilot Endpoints
+# -------------------------------------------------------------------------
+
+@app.post("/api/copilot/query")
+async def copilot_query(
+    payload: dict,
+    user: str = Depends(authenticate_user),
+) -> dict:
+    """Execute multi-agent quantitative research on a natural language prompt."""
+    query = payload.get("query", "").strip()
+    symbol = payload.get("symbol", "SPY").upper()
+    session_id = payload.get("session_id") or "default_session"
+
+    if not query:
+        raise HTTPException(status_code=400, detail="Query string cannot be empty.")
+
+    try:
+        from src.ai.agents.orchestrator import orchestrator
+        from src.ai.memory import memory_manager
+        from src.ai.guardrails import guardrail_engine
+
+        # Validate against prompt injection
+        valid, msg = guardrail_engine.validate_user_prompt(query)
+        if not valid:
+            raise HTTPException(status_code=400, detail=msg)
+
+        memory_manager.add_user_message(session_id, query)
+
+        # Run multi-agent orchestrator
+        report = orchestrator.run(query=query, symbol=symbol)
+        memory_manager.add_assistant_report(session_id, report)
+
+        return {
+            "status": "success",
+            "report": report.model_dump(),
+        }
+    except Exception as e:
+        logger.error(f"Error in Copilot query: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Copilot query failed: {e}")
+
+
+@app.post("/api/copilot/feedback")
+async def copilot_feedback(
+    payload: dict,
+    user: str = Depends(authenticate_user),
+) -> dict:
+    """Log user thumbs up/down and feedback on research reports."""
+    query_id = payload.get("query_id", "query_unknown")
+    rating = payload.get("rating", 5)
+    is_positive = payload.get("is_positive", True)
+    feedback_text = payload.get("feedback_text", "")
+
+    logger.info(f"Copilot feedback received: query_id={query_id}, rating={rating}, is_positive={is_positive}")
+    return {
+        "status": "success",
+        "message": "Feedback recorded successfully."
+    }
+
+
+@app.get("/api/copilot/metrics")
+async def copilot_metrics(
+    user: str = Depends(authenticate_user),
+) -> dict:
+    """Return offline benchmark scorecard and runtime metrics."""
+    from src.ai.evaluation.offline_eval import run_offline_evaluation
+    # Run a quick 3-case evaluation summary for the live dashboard view
+    scorecard = run_offline_evaluation(max_cases=3)
+    return {
+        "status": "success",
+        "scorecard": scorecard
+    }
+
+
+@app.get("/api/copilot/history/{session_id}")
+async def copilot_history(
+    session_id: str,
+    user: str = Depends(authenticate_user),
+) -> dict:
+    """Return chat message history for a session."""
+    from src.ai.memory import memory_manager
+    messages = memory_manager.get_session_history(session_id)
+    return {
+        "status": "success",
+        "session_id": session_id,
+        "messages": [m.model_dump() for m in messages]
+    }
+
 
 def main():
     """Main entrypoint for running the server from CLI."""

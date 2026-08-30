@@ -51,6 +51,7 @@
         <nav class="app-nav">
             <button class="nav-tab active" id="tab-live">Live Monitor</button>
             <button class="nav-tab" id="tab-backtest">Backtesting Portal</button>
+            <button class="nav-tab" id="tab-copilot">✨ AI Research Copilot</button>
         </nav>
 
         <!-- Live Monitor Tab Content -->
@@ -415,6 +416,98 @@
                         </div>
                         <div class="chart-wrapper-large" style="min-height: 400px; width: 100%;">
                             <div id="backtest-chart"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- AI Research Copilot Tab Content -->
+        <section class="tab-content hidden" id="content-copilot">
+            <div class="content-grid-2col" style="display: grid; grid-template-columns: 350px 1fr; gap: 1.5rem; margin-top: 1rem;">
+                
+                <!-- Left: Query & Sample Prompts Control -->
+                <div class="content-card">
+                    <div class="card-header">
+                        <h2>Research Assistant</h2>
+                    </div>
+                    <div class="filter-group" style="margin-bottom: 1rem;">
+                        <label for="copilot-symbol">Target Symbol:</label>
+                        <input type="text" id="copilot-symbol" value="SPY" class="custom-input" style="width: 100%; padding: 0.5rem; background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px;">
+                    </div>
+                    <div class="filter-group" style="margin-bottom: 1rem;">
+                        <label for="copilot-query">Research Question:</label>
+                        <textarea id="copilot-query" rows="4" class="custom-input" style="width: 100%; padding: 0.5rem; background: rgba(15,23,42,0.6); border: 1px solid rgba(255,255,255,0.1); color: #fff; border-radius: 6px; font-family: inherit;" placeholder="e.g. Run 15-point stress test and backtest Donchian strategy on SPY..."></textarea>
+                    </div>
+                    <button id="copilot-submit-btn" class="btn btn-primary" style="width: 100%; margin-bottom: 1rem;">Run Copilot Research</button>
+                    
+                    <h3 style="font-size: 0.85rem; color: #94a3b8; text-transform: uppercase; margin-bottom: 0.5rem;">Sample Research Prompts</h3>
+                    <div class="sample-prompts" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <button class="btn btn-secondary prompt-btn" style="text-align: left; font-size: 0.8rem; padding: 0.4rem 0.6rem;">🔬 Macro Regime & Hurst Exponent</button>
+                        <button class="btn btn-secondary prompt-btn" style="text-align: left; font-size: 0.8rem; padding: 0.4rem 0.6rem;">🛡️ 15-Point Stress Test on Portfolio</button>
+                        <button class="btn btn-secondary prompt-btn" style="text-align: left; font-size: 0.8rem; padding: 0.4rem 0.6rem;">📈 Backtest Donchian Breakout on QQQ</button>
+                        <button class="btn btn-secondary prompt-btn" style="text-align: left; font-size: 0.8rem; padding: 0.4rem 0.6rem;">📋 Audit Recent Risk Rejections</button>
+                    </div>
+                </div>
+
+                <!-- Right: Grounded Output & Structured Cards -->
+                <div class="content-card" id="copilot-output-card">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h2>Grounded Research Report</h2>
+                        <div id="copilot-status-badge" class="badge badge-paper">Awaiting Query</div>
+                    </div>
+                    
+                    <div id="copilot-loading" style="display: none; text-align: center; padding: 3rem 1rem;">
+                        <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⚡ Multi-Agent Pipeline Running...</div>
+                        <p style="color: #94a3b8; font-size: 0.9rem;">ResearchAgent ➔ QuantAgent ➔ RiskAgent ➔ CriticAgent</p>
+                    </div>
+
+                    <div id="copilot-results" style="display: none;">
+                        <!-- Summary Banner -->
+                        <div style="background: rgba(30, 41, 59, 0.7); border-left: 4px solid #38bdf8; padding: 1rem; border-radius: 6px; margin-bottom: 1.5rem;">
+                            <h3 style="margin-top: 0; font-size: 1rem; color: #38bdf8;">Executive Summary</h3>
+                            <p id="copilot-summary-text" style="color: #e2e8f0; line-height: 1.6; margin-bottom: 0;"></p>
+                        </div>
+
+                        <!-- KPI Grid: Confidence, Regime, Risk Compliance -->
+                        <div class="stats-overview" style="grid-template-columns: repeat(3, 1fr); margin-bottom: 1.5rem;">
+                            <div class="stat-box">
+                                <span class="stat-lbl">Confidence Score</span>
+                                <span class="stat-val" id="copilot-conf-score">--</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-lbl">Market Regime</span>
+                                <span class="stat-val" id="copilot-regime-val" style="color: #38bdf8;">--</span>
+                            </div>
+                            <div class="stat-box">
+                                <span class="stat-lbl">Risk Gate Status</span>
+                                <span class="stat-val" id="copilot-risk-val" style="color: #4ade80;">--</span>
+                            </div>
+                        </div>
+
+                        <!-- Trade Setups & Backtest Results -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                            <div style="background: rgba(15,23,42,0.4); padding: 1rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+                                <h4 style="margin-top: 0; color: #94a3b8; font-size: 0.9rem;">🎯 Proposed Trade Setup</h4>
+                                <div id="copilot-trade-ideas" style="font-size: 0.85rem; color: #cbd5e1;"></div>
+                            </div>
+                            <div style="background: rgba(15,23,42,0.4); padding: 1rem; border-radius: 6px; border: 1px solid rgba(255,255,255,0.05);">
+                                <h4 style="margin-top: 0; color: #94a3b8; font-size: 0.9rem;">📊 Backtest Validation</h4>
+                                <div id="copilot-backtest-benchmarks" style="font-size: 0.85rem; color: #cbd5e1;"></div>
+                            </div>
+                        </div>
+
+                        <!-- Citations & Feedback -->
+                        <div style="border-top: 1px solid rgba(255,255,255,0.1); padding-top: 1rem; display: flex; justify-content: space-between; align-items: flex-start;">
+                            <div>
+                                <h4 style="margin: 0 0 0.5rem 0; font-size: 0.85rem; color: #94a3b8;">📚 Grounded Citations & Sources</h4>
+                                <ul id="copilot-citations-list" style="margin: 0; padding-left: 1.2rem; font-size: 0.8rem; color: #94a3b8;"></ul>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <span style="font-size: 0.8rem; color: #94a3b8;">Rate output:</span>
+                                <button id="copilot-thumb-up" class="btn btn-secondary" style="padding: 0.3rem 0.6rem;">👍 Helpful</button>
+                                <button id="copilot-thumb-down" class="btn btn-secondary" style="padding: 0.3rem 0.6rem;">👎 Inaccurate</button>
+                            </div>
                         </div>
                     </div>
                 </div>

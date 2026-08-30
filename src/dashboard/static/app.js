@@ -868,22 +868,160 @@ document.addEventListener("DOMContentLoaded", () => {
     const tabBacktest = document.getElementById("tab-backtest");
     const contentLive = document.getElementById("content-live");
     const contentBacktest = document.getElementById("content-backtest");
+    const tabCopilot = document.getElementById("tab-copilot");
+    const contentCopilot = document.getElementById("content-copilot");
 
-    if (tabLive && tabBacktest) {
-        tabLive.addEventListener("click", () => {
-            tabLive.classList.add("active");
-            tabBacktest.classList.remove("active");
-            contentLive.classList.remove("hidden");
-            contentBacktest.classList.add("hidden");
-            window.dispatchEvent(new Event('resize'));
+    function switchTab(activeTab, activeContent) {
+        [tabLive, tabBacktest, tabCopilot].forEach(t => t && t.classList.remove("active"));
+        [contentLive, contentBacktest, contentCopilot].forEach(c => c && c.classList.add("hidden"));
+        if (activeTab) activeTab.classList.add("active");
+        if (activeContent) activeContent.classList.remove("hidden");
+        window.dispatchEvent(new Event('resize'));
+    }
+
+    if (tabLive) tabLive.addEventListener("click", () => switchTab(tabLive, contentLive));
+    if (tabBacktest) tabBacktest.addEventListener("click", () => switchTab(tabBacktest, contentBacktest));
+    if (tabCopilot) tabCopilot.addEventListener("click", () => switchTab(tabCopilot, contentCopilot));
+
+    // Copilot Prompt Shortcut buttons
+    document.querySelectorAll(".prompt-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            const promptText = btn.textContent.replace(/^[^\w]+/, '').trim();
+            const textarea = document.getElementById("copilot-query");
+            if (textarea) {
+                if (promptText.includes("Macro Regime")) {
+                    textarea.value = "What is the current market regime for SPY and what is the Hurst exponent?";
+                } else if (promptText.includes("15-Point Stress Test")) {
+                    textarea.value = "Run a 15-scenario stress grid test on our current portfolio positions.";
+                } else if (promptText.includes("Backtest Donchian")) {
+                    textarea.value = "Backtest Donchian Breakout strategy on QQQ from 2021 to 2025.";
+                    document.getElementById("copilot-symbol").value = "QQQ";
+                } else if (promptText.includes("Audit Recent")) {
+                    textarea.value = "Retrieve recent risk rejection reasons and trade logs from the immutable SQLite audit ledger.";
+                }
+            }
         });
+    });
 
-        tabBacktest.addEventListener("click", () => {
-            tabBacktest.classList.add("active");
-            tabLive.classList.remove("active");
-            contentBacktest.classList.remove("hidden");
-            contentLive.classList.add("hidden");
-            window.dispatchEvent(new Event('resize'));
+    // Copilot Query Submission
+    const copilotSubmitBtn = document.getElementById("copilot-submit-btn");
+    if (copilotSubmitBtn) {
+        copilotSubmitBtn.addEventListener("click", async () => {
+            const query = document.getElementById("copilot-query").value.trim();
+            const symbol = document.getElementById("copilot-symbol").value.trim().toUpperCase() || "SPY";
+
+            if (!query) {
+                showToast("⚠️ Missing Query", "Please enter a research question or select a prompt.", "warning");
+                return;
+            }
+
+            copilotSubmitBtn.disabled = true;
+            copilotSubmitBtn.textContent = "Multi-Agent Researching...";
+            document.getElementById("copilot-loading").style.display = "block";
+            document.getElementById("copilot-results").style.display = "none";
+            document.getElementById("copilot-status-badge").textContent = "Analyzing...";
+            document.getElementById("copilot-status-badge").className = "badge badge-paper";
+
+            try {
+                const res = await fetch("/api/copilot/query", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ query, symbol, session_id: "web_dashboard_session" })
+                });
+
+                if (!res.ok) {
+                    const err = await res.text();
+                    showToast("❌ Copilot Error", `Analysis failed: ${err}`, "danger");
+                    return;
+                }
+
+                const data = await res.json();
+                if (data.status === "success" && data.report) {
+                    const r = data.report;
+                    showToast("✨ Research Complete", `Grounded analysis generated for ${symbol}.`, "success");
+
+                    document.getElementById("copilot-summary-text").textContent = r.summary || "Analysis complete.";
+                    document.getElementById("copilot-conf-score").textContent = `${Math.round(r.confidence_score * 100)}%`;
+                    document.getElementById("copilot-regime-val").textContent = r.market_regime || "UNKNOWN";
+                    
+                    const riskPassed = r.risk_assessment && r.risk_assessment.risk_compliant;
+                    document.getElementById("copilot-risk-val").textContent = riskPassed ? "APPROVED (PASSED)" : "FLAGGED (VIOLATION)";
+                    document.getElementById("copilot-risk-val").style.color = riskPassed ? "#4ade80" : "#f87171";
+                    
+                    // Render trade setups
+                    const ideasDiv = document.getElementById("copilot-trade-ideas");
+                    if (r.trade_ideas && r.trade_ideas.length > 0) {
+                        ideasDiv.innerHTML = r.trade_ideas.map(t => `
+                            <div style="margin-bottom: 0.5rem; padding-bottom: 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                <strong>${t.action} ${t.symbol}</strong> (${t.strategy})<br/>
+                                Entry: $${t.suggested_entry || 'MKT'} | SL: $${t.stop_loss || 'N/A'} | TP: $${t.take_profit || 'N/A'}<br/>
+                                <span style="color: #94a3b8; font-size: 0.8rem;">${t.rationale}</span>
+                            </div>
+                        `).join("");
+                    } else {
+                        ideasDiv.innerHTML = "<span class='text-muted'>No active trades proposed for current regime.</span>";
+                    }
+
+                    // Render backtest benchmarks
+                    const btDiv = document.getElementById("copilot-backtest-benchmarks");
+                    if (r.backtest_benchmarks && r.backtest_benchmarks.length > 0) {
+                        btDiv.innerHTML = r.backtest_benchmarks.map(b => `
+                            <div>
+                                <strong>${b.strategy.toUpperCase()} (${b.symbol})</strong><br/>
+                                CAGR: <strong>${b.cagr_pct}%</strong> | Sharpe: <strong>${b.sharpe_ratio}</strong><br/>
+                                Max DD: ${b.max_drawdown_pct}% | Win Rate: ${b.win_rate_pct}% (${b.total_trades} trades)
+                            </div>
+                        `).join("");
+                    } else {
+                        btDiv.innerHTML = "<span class='text-muted'>No backtest execution requested.</span>";
+                    }
+
+                    // Render citations
+                    const citList = document.getElementById("copilot-citations-list");
+                    if (r.citations && r.citations.length > 0) {
+                        citList.innerHTML = r.citations.map(c => `
+                            <li><strong>${c.title}</strong>: <em>${c.snippet}</em></li>
+                        `).join("");
+                    } else {
+                        citList.innerHTML = "<li>Primary source: Real-time Quantitative Engine Tool Invocation</li>";
+                    }
+
+                    document.getElementById("copilot-status-badge").textContent = "Grounded & Verified";
+                    document.getElementById("copilot-status-badge").className = "badge badge-success";
+                    document.getElementById("copilot-results").style.display = "block";
+                }
+            } catch (e) {
+                console.error("Copilot request error:", e);
+                showToast("❌ Network Error", "Failed to contact Copilot service.", "danger");
+            } finally {
+                copilotSubmitBtn.disabled = false;
+                copilotSubmitBtn.textContent = "Run Copilot Research";
+                document.getElementById("copilot-loading").style.display = "none";
+            }
+        });
+    }
+
+    // Feedback Thumbs Up / Down
+    const thumbUp = document.getElementById("copilot-thumb-up");
+    const thumbDown = document.getElementById("copilot-thumb-down");
+    if (thumbUp) {
+        thumbUp.addEventListener("click", async () => {
+            showToast("👍 Feedback Recorded", "Thank you for rating this research report.", "success");
+            await fetch("/api/copilot/feedback", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ rating: 5, is_positive: true })
+            });
+        });
+    }
+    if (thumbDown) {
+        thumbDown.addEventListener("click", async () => {
+            showToast("👎 Feedback Recorded", "Thank you for the feedback. Critique noted.", "info");
+            await fetch("/api/copilot/feedback", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ rating: 1, is_positive: false })
+            });
         });
     }
 

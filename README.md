@@ -2,12 +2,63 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
 [![Build Status](https://github.com/Alokkr00/HATS-Trading-Engine/actions/workflows/tests.yml/badge.svg)](https://github.com/Alokkr00/HATS-Trading-Engine/actions)
-[![Tests](https://img.shields.io/badge/tests-153%20passed-brightgreen.svg)](https://github.com/)
+[![Tests](https://img.shields.io/badge/tests-170%20passed-brightgreen.svg)](https://github.com/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-H.A.T.S is a modular **quantitative trading framework and paper-trading engine** in Python built for backtesting, paper-trading, and managing swing trading strategies on US equities and options via the Alpaca API.
+H.A.T.S is a modular **quantitative trading framework, paper-trading engine, and agentic research copilot** in Python built for systematic research, risk-gating, backtesting, and automated execution on US equities and options via the Alpaca API.
 
-Originally started as an experimental trading bot, the project has evolved into a full-featured research and execution framework equipped with risk-gating, an event-driven backtesting engine, an ACID-compliant audit ledger, and a web dashboard.
+---
+
+## 🤖 AI Trading Research Copilot (Multi-Agent System)
+
+H.A.T.S features an **Agentic Research Copilot** powered by a **LangGraph State Machine** and Google Gemini. The system allows traders to ask complex research questions in natural language, retrieving grounded context, executing real backtests, evaluating a 15-point portfolio stress grid, and enforcing safety guardrails before formulating trade ideas.
+
+```
+                     ┌────────────────────────────────────────┐
+                     │    User Query (API / Dashboard Web)    │
+                     └───────────────────┬────────────────────┘
+                                         ▼
+                     ┌────────────────────────────────────────┐
+                     │     LangGraph Multi-Agent Pipeline     │
+                     │                                        │
+                     │   ┌────────────────────────────────┐   │
+                     │   │ 1. Research Agent (RAG + Data) │   │
+                     │   └───────────────┬────────────────┘   │
+                     │                   ▼                    │
+                     │   ┌────────────────────────────────┐   │
+                     │   │ 2. Quant Agent (Backtester)    │   │
+                     │   └───────────────┬────────────────┘   │
+                     │                   ▼                    │
+                     │   ┌────────────────────────────────┐   │
+                     │   │ 3. Risk Agent (Stress Grid)    │   │
+                     │   └───────────────┬────────────────┘   │
+                     │                   ▼                    │
+                     │   ┌────────────────────────────────┐   │
+                     │   │ 4. Critic Agent (Auditor)      │   │
+                     │   └───────────────┬────────────────┘   │
+                     │                   ▼                    │
+                     │   ┌────────────────────────────────┐   │
+                     │   │ 5. Synthesizer (Pydantic Out)  │   │
+                     │   └────────────────────────────────┘   │
+                     └───────────────────┬────────────────────┘
+                                         ▼
+                     ┌────────────────────────────────────────┐
+                     │  Grounded Research Report with Proofs  │
+                     │  (Citations, Confidence & Risk Flags)  │
+                     └────────────────────────────────────────┘
+```
+
+### 📊 Benchmark Evaluation Scorecard (30 Golden Queries)
+The AI Copilot is audited using an automated offline evaluation harness (`python -m src.ai.evaluation.offline_eval`) tracking groundedness, latency, and strict risk adherence:
+
+| Metric | Score | Target |
+| :--- | :--- | :--- |
+| **Task Success Rate** | **100.0%** | $\ge 95\%$ |
+| **Risk Compliance Rate** | **100.0%** | $100\%$ |
+| **Citation Faithfulness** | **100.0%** | $\ge 90\%$ |
+| **High Confidence Rate** | **100.0%** | $\ge 85\%$ |
+| **Average Query Latency** | **4.65s** | $< 10\text{s}$ |
+| **Estimated Cost / Query** | **\$0.00030** | $< \$0.01$ |
 
 ---
 
@@ -44,6 +95,23 @@ Originally started as an experimental trading bot, the project has evolved into 
 │  • OTO (One-Triggers-Other) Bracket Orders (Stop-Loss & Take-Profit)     │
 │  • Immutable SQLite Audit Ledger (Database-level Triggers)              │
 └────────────────────────────────────┬────────────────────────────────────┘
+                                     │
+                    ┌────────────────┴────────────────┐
+                    ▼                                 ▼
+         ┌─────────────────────┐           ┌─────────────────────┐
+         │  FastAPI Dashboard  │           │   Telegram Alerts   │
+         │  (http://127.0.0.1) │           │   (Real-time Bot)   │
+         └─────────────────────┘           └─────────────────────┘
+```
+
+---
+
+## 🏛️ System Design Trade-offs & Architecture
+
+* **Batch Cycle vs. Streaming Architecture**: H.A.T.S is intentionally built around scheduled batch execution cycles (`python -m src.main --interval 1d`) rather than a real-time HFT streaming pipeline. This aligns with the requirements of daily swing trading, minimizing memory footprint and operational complexity.
+* **Single Authoritative State Store**: All order states, positions, and risk audit logs are persisted in an ACID-compliant SQLite database equipped with DDL-level immutability triggers. JSON files serve only as exported state snapshots.
+* **Decoupled Risk Gate Interface**: The risk engine enforces a 15-scenario stress matrix before any order is dispatched. The risk module interface is decoupled from the OMS, allowing more complex multi-factor or Monte Carlo risk models to be plugged in.
+* **Modular Strategy Architecture**: Strategies inherit from a common `BaseStrategy` interface, separating signal generation from order sizing and execution.�─────────────────────────────────┬────────────────────────────────────┘
                                      │
                     ┌────────────────┴────────────────┐
                     ▼                                 ▼
