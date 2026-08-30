@@ -2,7 +2,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
 [![Build Status](https://github.com/Alokkr00/HATS-Trading-Engine/actions/workflows/tests.yml/badge.svg)](https://github.com/Alokkr00/HATS-Trading-Engine/actions)
-[![Tests](https://img.shields.io/badge/tests-180%20passed-brightgreen.svg)](https://github.com/)
+[![Tests](https://img.shields.io/badge/tests-187%20passed-brightgreen.svg)](https://github.com/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 H.A.T.S is a modular **quantitative trading framework, paper-trading engine, and agentic research copilot** in Python built for systematic research, risk-gating, backtesting, and automated execution on US equities and options via the Alpaca API.

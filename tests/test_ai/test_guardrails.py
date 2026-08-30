@@ -34,3 +34,18 @@ def test_guardrail_audits_report():
     )
     passed, msg = guardrail_engine.audit_final_report(report)
     assert passed is True
+
+
+def test_guardrail_order_approval():
+    """Verify that autonomous order execution without human sign-off is blocked."""
+    ok_auto, msg_auto = guardrail_engine.validate_order_ticket_approval(human_approved=False)
+    assert ok_auto is False
+    assert "Explicit human approval required" in msg_auto
+
+    ok_guest, msg_guest = guardrail_engine.validate_order_ticket_approval(human_approved=True, user_role="viewer")
+    assert ok_guest is False
+    assert "Permission denied" in msg_guest
+
+    ok_admin, msg_admin = guardrail_engine.validate_order_ticket_approval(human_approved=True, user_role="admin")
+    assert ok_admin is True
+    assert msg_admin == "Human approval verified"

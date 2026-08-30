@@ -60,6 +60,8 @@ class ResearchReport(BaseModel):
     citations: List[Citation] = Field(default_factory=list, description="Verified references and tool sources")
     confidence_score: float = Field(..., ge=0.0, le=1.0, description="Overall groundedness confidence score (0.0 to 1.0)")
     critic_notes: Optional[str] = Field(None, description="Notes or critiques from the Critic Agent")
+    is_suggestion_only: bool = Field(True, description="Enforces strict suggestion-only mode; autonomous live execution blocked")
+    human_approval_required: bool = Field(True, description="Mandates explicit human authentication before order dispatch")
     timestamp: str = Field(default_factory=lambda: dt.datetime.now(dt.timezone.utc).isoformat())
 
 

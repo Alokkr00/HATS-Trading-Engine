@@ -46,5 +46,14 @@ class GuardrailEngine:
 
         return True, "Audit passed"
 
+    @staticmethod
+    def validate_order_ticket_approval(human_approved: bool, user_role: str = "guest") -> Tuple[bool, str]:
+        """Strictly enforce human-in-the-loop sign-off before any order dispatch."""
+        if not human_approved:
+            return False, "Autonomous AI execution blocked: Explicit human approval required."
+        if user_role.lower() != "admin":
+            return False, f"Permission denied: User role '{user_role}' cannot authorize live trade tickets."
+        return True, "Human approval verified"
+
 
 guardrail_engine = GuardrailEngine()
