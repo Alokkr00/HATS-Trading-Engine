@@ -1,0 +1,40 @@
+name: Automated Daily Trading Cycle
+
+on:
+  # Run Monday through Friday at 20:05 UTC (4:05 PM US Eastern Time - Market Close)
+  schedule:
+    - cron: '5 20 * * 1-5'
+  # Allows you to manually trigger a cycle from GitHub website/app anytime
+  workflow_dispatch:
+
+jobs:
+  trade_cycle:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+        cache: 'pip'
+
+    - name: Install Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Execute Daily H.A.T.S Trading Cycle
+      env:
+        PYTHONPATH: .
+        TZ: America/New_York
+        APCA_API_KEY_ID: ${{ secrets.APCA_API_KEY_ID }}
+        APCA_API_SECRET_KEY: ${{ secrets.APCA_API_SECRET_KEY }}
+        ALPACA_PAPER: "1"
+        GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      run: |
+        python -m src.main --interval 1d
