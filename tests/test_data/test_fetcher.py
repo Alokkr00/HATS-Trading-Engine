@@ -28,6 +28,29 @@ from src.data.store import DataStore
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def mock_yfinance_calls(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Mock DataFetcher._call_yfinance to make test suite 100% hermetic and fast."""
+    def mock_fetch(self, symbol: str, start: str | None, end: str | None, interval: str) -> pd.DataFrame:
+        if "ZZZ" in symbol:
+            raise InvalidSymbolError(f"No data returned for '{symbol}'")
+        dates = pd.date_range("2023-01-01", "2024-12-31", freq="B", tz="UTC")
+        np.random.seed(42)
+        n = len(dates)
+        close = 150.0 + np.cumsum(np.random.normal(0.05, 1.0, n))
+        close = np.maximum(close, 10.0)
+        high = close + np.random.uniform(0.5, 2.0, n)
+        low = close - np.random.uniform(0.5, 2.0, n)
+        open_p = low + np.random.uniform(0.1, 0.9, n) * (high - low)
+        volume = np.random.uniform(1000000, 5000000, n)
+        return pd.DataFrame(
+            {"Open": open_p, "High": high, "Low": low, "Close": close, "Volume": volume},
+            index=dates,
+        )
+
+    monkeypatch.setattr(DataFetcher, "_call_yfinance", mock_fetch)
+
+
 @pytest.fixture()
 def fetcher() -> DataFetcher:
     """Return a default DataFetcher instance."""

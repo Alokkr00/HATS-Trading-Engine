@@ -139,6 +139,12 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
         executor.map(download_and_clean, watchlist)
 
     # 3. Initialize Alpaca Client and Order Management System (OMS)
+    apca_key = os.getenv("APCA_API_KEY_ID", "").strip()
+    apca_secret = os.getenv("APCA_API_SECRET_KEY", "").strip()
+    if not apca_key or not apca_secret or apca_key.startswith("mock_"):
+        logger.warning("Alpaca API credentials not configured in environment. Skipping execution cycle cleanly.")
+        return
+
     client = AlpacaClient()
     account_id = os.getenv("APCA_API_KEY_ID", "alpaca_paper")
     oms = OrderManager(client, account_id=account_id)
