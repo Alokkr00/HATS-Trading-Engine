@@ -772,13 +772,33 @@ def run_backtest_endpoint(payload: dict) -> dict[str, Any]:
     if not strategy_name or not symbol:
         raise HTTPException(status_code=400, detail="Missing strategy or symbol in request payload.")
         
-    # Load cleaned historical data from Parquet
+    # Load cleaned historical data from Parquet, or fetch on-demand via yfinance
     store = DataStore(raw_dir=str(PROJECT_ROOT / "data" / "raw"))
     df = store.load(symbol, tz="US/Eastern")
     
     if df is None or df.empty:
-        raise HTTPException(status_code=404, detail=f"No historical market data found for {symbol}. Run a systematic cycle first to cache data.")
+        try:
+            import yfinance as yf
+            raw_df = yf.download(symbol, period="2y", progress=False)
+            if raw_df is not None and not raw_df.empty:
+                if isinstance(raw_df.columns, pd.MultiIndex):
+                    raw_df.columns = [c[0] for c in raw_df.columns]
+                raw_df = raw_df.rename(columns={"Open": "open", "High": "high", "Low": "low", "Close": "close", "Volume": "volume"})
+                if raw_df.index.tz is None:
+                    raw_df.index = raw_df.index.tz_localize("UTC").tz_convert("US/Eastern")
+                df = raw_df
+                try:
+                    store.save(df, symbol)
+                except Exception:
+                    pass
+        except Exception as e:
+            logger.warning(f"Failed on-demand download for {symbol}: {e}")
+
+    if df is None or df.empty:
+        raise HTTPException(status_code=404, detail=f"No historical market data found for {symbol}.")
         
+    df.attrs["symbol"] = symbol
+
     # Map strategy name to strategy instances
     from src.strategy.strategies import (
         MACrossoverStrategy,
@@ -820,41 +840,43 @@ def run_backtest_endpoint(payload: dict) -> dict[str, Any]:
         raise HTTPException(status_code=400, detail=f"Invalid strategy name: {strategy_name}. Valid strategies: {list(strats.keys())}")
         
     try:
-        # Instantiate strategy
         strat_cls = strats[strategy_name]
         strat_instance = strat_cls(name=strategy_name, config={"check_look_ahead": False})
         
-        # Add indicators
-        df_indicators = strat_instance.add_indicators(df)
-        
-        # Run BacktestEngine
+        # Run BacktestEngine with cost model
         engine = BacktestEngine(
             strategy=strat_instance,
             capital=capital,
-            cost_model=CostModel.default()
+            cost_model=CostModel(spread_bps=1.5, slippage_bps=3.0)
         )
-        results = engine.run(df_indicators)
+        results = engine.run(df)
         
         metrics = results["metrics"]
         equity_curve = results["equity_curve"]
         
         equity_data = []
-        for date, value in equity_curve.items():
-            equity_data.append({
-                "date": date.strftime("%Y-%m-%d"),
-                "value": float(round(value, 2))
-            })
+        if hasattr(equity_curve, "items"):
+            for date, value in equity_curve.items():
+                date_str = date.strftime("%Y-%m-%d") if hasattr(date, "strftime") else str(date)
+                equity_data.append({
+                    "date": date_str,
+                    "value": float(round(float(value), 2))
+                })
             
+        profit_factor_val = metrics.get("profit_factor", 0.0)
+        if profit_factor_val is None or math.isinf(profit_factor_val) or math.isnan(profit_factor_val):
+            profit_factor_val = 0.0
+
         return {
             "status": "success",
             "metrics": {
-                "cagr": float(metrics.get("cagr", 0.0)),
-                "sharpe": float(metrics.get("sharpe", 0.0)),
-                "sortino": float(metrics.get("sortino", 0.0)),
-                "max_drawdown": float(metrics.get("max_drawdown", 0.0)),
-                "win_rate": float(metrics.get("win_rate", 0.0)),
-                "total_trades": int(metrics.get("total_trades", 0)),
-                "profit_factor": float(metrics.get("profit_factor", 0.0)) if not math.isinf(metrics.get("profit_factor", 0.0)) else "inf",
+                "cagr": float(metrics.get("cagr", 0.0) or 0.0),
+                "sharpe": float(metrics.get("sharpe", 0.0) or 0.0),
+                "sortino": float(metrics.get("sortino", 0.0) or 0.0),
+                "max_drawdown": float(metrics.get("max_drawdown", 0.0) or 0.0),
+                "win_rate": float(metrics.get("win_rate", 0.0) or 0.0),
+                "total_trades": int(metrics.get("total_trades", 0) or 0),
+                "profit_factor": float(profit_factor_val),
             },
             "equity_curve": equity_data
         }
