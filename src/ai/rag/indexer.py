@@ -8,10 +8,30 @@ from pathlib import Path
 from typing import Any, Dict, List
 import chromadb
 from chromadb.config import Settings
+from chromadb.api.types import Documents, EmbeddingFunction, Embeddings
+import numpy as np
 
 from src.ai.config import copilot_config
 
 logger = logging.getLogger(__name__)
+
+
+class FastLocalEmbeddingFunction(EmbeddingFunction[Documents]):
+    """Fast, offline deterministic embedding function for zero-dependency vector indexing."""
+
+    def __call__(self, input: Documents) -> Embeddings:
+        embeddings = []
+        for text in input:
+            vec = np.zeros(128, dtype=np.float32)
+            words = text.lower().split()[:128]
+            for w in words:
+                idx = abs(hash(w)) % 128
+                vec[idx] += 1.0
+            norm = np.linalg.norm(vec)
+            if norm > 0:
+                vec /= norm
+            embeddings.append(vec.tolist())
+        return embeddings
 
 
 class RAGIndexer:
@@ -20,12 +40,14 @@ class RAGIndexer:
     def __init__(self, persist_dir: Path | None = None) -> None:
         self.persist_dir = persist_dir or copilot_config.chroma_db_dir
         self.persist_dir.mkdir(parents=True, exist_ok=True)
+        self.embedding_fn = FastLocalEmbeddingFunction()
         self.client = chromadb.PersistentClient(
             path=str(self.persist_dir),
             settings=Settings(anonymized_telemetry=False),
         )
         self.collection = self.client.get_or_create_collection(
             name="hats_research_kb",
+            embedding_function=self.embedding_fn,
             metadata={"description": "H.A.T.S Quantitative Strategy Docs & Audit Records"}
         )
 

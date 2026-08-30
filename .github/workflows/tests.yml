@@ -22,7 +22,7 @@ jobs:
     - name: Install Dependencies
       run: |
         python -m pip install --upgrade pip
-        pip install --pre -r requirements.txt
+        pip install -r requirements.txt
 
     - name: Run PyTest
       env:
@@ -30,6 +30,7 @@ jobs:
         APCA_API_KEY_ID: mock_key_id_for_ci_testing
         APCA_API_SECRET_KEY: mock_secret_key_for_ci_testing
         ALPACA_PAPER: "1"
+        GEMINI_API_KEY: mock_gemini_key_for_ci
         DASHBOARD_USERNAME: admin
         DASHBOARD_PASSWORD: hats_secure_pass
         TELEGRAM_BOT_TOKEN: mock_token_for_ci
