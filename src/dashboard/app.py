@@ -477,8 +477,9 @@ def get_signals() -> list[dict[str, Any]]:
 
     now = dt.datetime.now()
     if _signal_cache_last_updated and (now - _signal_cache_last_updated).total_seconds() < _CACHE_TTL_SECONDS:
-        logger.debug("Serving signals from in-memory cache.")
-        return list(_signal_in_memory_cache.values())
+        if _signal_in_memory_cache and all(s.get("close_price", 0) > 0 for s in _signal_in_memory_cache.values()):
+            logger.debug("Serving signals from in-memory cache.")
+            return list(_signal_in_memory_cache.values())
 
     from src.config_loader import get_settings
     settings = get_settings()
