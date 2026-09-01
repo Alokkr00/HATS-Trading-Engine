@@ -576,34 +576,37 @@ def get_signals() -> list[dict[str, Any]]:
                 signal_entry["timestamp"] = df.index[-1].isoformat()
 
                 for strat in strategies:
-                    sig_df = strat.generate_signals(df)
-                    if not sig_df.empty and "signal" in sig_df.columns:
-                        sig_val = int(sig_df["signal"].iloc[-1])
-                        signal_entry[strat.name] = sig_val
-                        
-                        # Save to database
-                        try:
-                            db.execute_query(
-                                """
-                                INSERT INTO signal_cache (symbol, strategy_name, signal, close_price, bar_timestamp, updated_at)
-                                VALUES (:symbol, :strategy_name, :signal, :close_price, :bar_timestamp, :updated_at)
-                                ON CONFLICT(symbol, strategy_name) DO UPDATE SET
-                                    signal = excluded.signal,
-                                    close_price = excluded.close_price,
-                                    bar_timestamp = excluded.bar_timestamp,
-                                    updated_at = excluded.updated_at;
-                                """,
-                                {
-                                    "symbol": symbol,
-                                    "strategy_name": strat.name,
-                                    "signal": sig_val,
-                                    "close_price": signal_entry["close_price"],
-                                    "bar_timestamp": signal_entry["timestamp"],
-                                    "updated_at": now_iso
-                                }
-                            )
-                        except Exception as dbe:
-                            logger.error(f"Failed to persist signal to database for {symbol}: {dbe}")
+                    try:
+                        sig_df = strat.generate_signals(df)
+                        if not sig_df.empty and "signal" in sig_df.columns:
+                            sig_val = int(sig_df["signal"].iloc[-1])
+                            signal_entry[strat.name] = sig_val
+                            
+                            # Save to database
+                            try:
+                                db.execute_query(
+                                    """
+                                    INSERT INTO signal_cache (symbol, strategy_name, signal, close_price, bar_timestamp, updated_at)
+                                    VALUES (:symbol, :strategy_name, :signal, :close_price, :bar_timestamp, :updated_at)
+                                    ON CONFLICT(symbol, strategy_name) DO UPDATE SET
+                                        signal = excluded.signal,
+                                        close_price = excluded.close_price,
+                                        bar_timestamp = excluded.bar_timestamp,
+                                        updated_at = excluded.updated_at;
+                                    """,
+                                    {
+                                        "symbol": symbol,
+                                        "strategy_name": strat.name,
+                                        "signal": sig_val,
+                                        "close_price": signal_entry["close_price"],
+                                        "bar_timestamp": signal_entry["timestamp"],
+                                        "updated_at": now_iso
+                                    }
+                                )
+                            except Exception as dbe:
+                                logger.error(f"Failed to persist signal to database for {symbol}: {dbe}")
+                    except Exception as strat_err:
+                        logger.debug(f"Strategy {strat.name} skipped for {symbol}: {strat_err}")
         except Exception as e:
             logger.warning(f"Failed to compute signals for {symbol}: {e}")
 

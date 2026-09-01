@@ -17,6 +17,8 @@ from src.strategy.base import BaseStrategy
 
 logger = logging.getLogger(__name__)
 
+_EARNINGS_CACHE: dict[str, list] = {}
+
 
 class OptionsIVRunupStrategy(BaseStrategy):
     """Buys options before earnings to capture vega expansion and momentum."""
@@ -122,8 +124,21 @@ class OptionsIVRunupStrategy(BaseStrategy):
         pct_stop = entry_price * 0.92
         return max(atr_stop, pct_stop)
 
-    def _get_all_earnings_dates(self, symbol: str) -> list[date]:
-        """Fetch all historical and upcoming earnings dates from yfinance."""
+    def _get_all_earnings_dates(self, symbol: str) -> list:
+        """Fetch all historical and upcoming earnings dates from yfinance with caching."""
+        global _EARNINGS_CACHE
+        if symbol in _EARNINGS_CACHE:
+            return _EARNINGS_CACHE[symbol]
+
+        # ETFs and indices do not have earnings announcements
+        _KNOWN_ETFS = {
+            "SPY", "QQQ", "IWM", "DIA", "TLT", "BIL", "GLD", "SLV", "USO",
+            "XLK", "XLF", "XLV", "XLY", "XLP", "XLE", "XLI", "XLB", "XLRE", "XLU", "XLC"
+        }
+        if symbol.upper() in _KNOWN_ETFS or symbol.startswith("^"):
+            _EARNINGS_CACHE[symbol] = []
+            return []
+
         dates = []
         try:
             ticker = yf.Ticker(symbol)
@@ -159,5 +174,7 @@ class OptionsIVRunupStrategy(BaseStrategy):
         except Exception as e:
             logger.debug(f"Failed to fetch earnings for {symbol}: {e}")
 
-        # Remove duplicates and return sorted list
-        return sorted(list(set(dates)))
+        # Remove duplicates and cache result
+        res = sorted(list(set(dates)))
+        _EARNINGS_CACHE[symbol] = res
+        return res
