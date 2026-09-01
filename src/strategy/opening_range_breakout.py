@@ -62,15 +62,15 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
         d["vol_sma_20"] = v.rolling(20, min_periods=1).mean()
 
         # 3. Session Opening Range High / Low tracking
-        # Group by trading date
-        d["date"] = d.index.date if hasattr(d.index, "date") else pd.to_datetime(d.index).dt.date
+        # Group by trading date directly from index
+        trading_dates = pd.Series(d.index.date if hasattr(d.index, "date") else pd.to_datetime(d.index).dt.date, index=d.index)
         
         # Calculate opening range per session
         orb_highs = []
         orb_lows = []
         orb_mids = []
 
-        for date, group in d.groupby("date", sort=False):
+        for _, group in d.groupby(trading_dates, sort=False):
             n_bars = min(len(group), opening_bars)
             session_open_high = group["high"].iloc[:n_bars].max()
             session_open_low = group["low"].iloc[:n_bars].min()
@@ -85,7 +85,7 @@ class OpeningRangeBreakoutStrategy(BaseStrategy):
         d["orb_mid"] = pd.Series(orb_mids, index=d.index)
         
         if "date" in d.columns:
-            d.drop(columns=["date"], inplace=True)
+            d = d.drop(columns=["date"])
 
         return d
 

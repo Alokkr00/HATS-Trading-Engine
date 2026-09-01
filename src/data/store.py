@@ -239,6 +239,8 @@ class DataStore:
                 df = df.set_index("date")
             else:
                 df.index = pd.to_datetime(df.index)
+        elif "date" in df.columns:
+            df = df.drop(columns=["date"])
 
         df.index.name = "date"
         return df

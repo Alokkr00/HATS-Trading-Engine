@@ -856,6 +856,9 @@ def run_backtest_endpoint(payload: dict) -> dict[str, Any]:
         if df is None or df.empty:
             raise ValueError(f"Failed to load or generate market data for {symbol}")
 
+        if "date" in df.columns and isinstance(df.index, pd.DatetimeIndex):
+            df = df.drop(columns=["date"])
+        df.index.name = "date"
         df.attrs["symbol"] = symbol
 
         # Map strategy name to strategy instances

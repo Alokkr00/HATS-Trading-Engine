@@ -62,7 +62,7 @@ class IntradayVWAPStrategy(BaseStrategy):
         d["atr_14"] = tr.rolling(14, min_periods=1).mean()
 
         # 3. Session Anchored Cumulative VWAP and Standard Deviation
-        d["date"] = d.index.date if hasattr(d.index, "date") else pd.to_datetime(d.index).dt.date
+        trading_dates = pd.Series(d.index.date if hasattr(d.index, "date") else pd.to_datetime(d.index).dt.date, index=d.index)
         typical_price = (h + l + c) / 3.0
         pv = typical_price * v
 
@@ -70,7 +70,7 @@ class IntradayVWAPStrategy(BaseStrategy):
         upper_band_list = []
         lower_band_list = []
 
-        for date, group in d.groupby("date", sort=False):
+        for _, group in d.groupby(trading_dates, sort=False):
             grp_pv = pv.loc[group.index]
             grp_v = v.loc[group.index]
             grp_tp = typical_price.loc[group.index]
@@ -96,7 +96,7 @@ class IntradayVWAPStrategy(BaseStrategy):
         d["vwap_lower"] = pd.Series(lower_band_list, index=d.index).ffill()
 
         if "date" in d.columns:
-            d.drop(columns=["date"], inplace=True)
+            d = d.drop(columns=["date"])
 
         return d
 
