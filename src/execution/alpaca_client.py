@@ -24,8 +24,12 @@ class AlpacaError(Exception):
     """Base exception for AlpacaClient errors."""
 
 
+class AlpacaAuthError(AlpacaError):
+    """Raised on authentication failures (invalid, expired, or revoked API key/secret)."""
+
+
 class AlpacaConnectionError(AlpacaError):
-    """Raised on transient network failures."""
+    """Raised on transient network failures or rate limits."""
 
 
 class AlpacaAPIError(AlpacaError):
@@ -46,6 +50,25 @@ class AlpacaClient:
 
     Set ALPACA_PAPER=0 only when you are ready for real money.
     """
+
+    @staticmethod
+    def _classify_exception(exc: Exception, context: str) -> AlpacaError:
+        """Classify raw Alpaca SDK / network exceptions into precise OMS domain exceptions."""
+        msg = str(exc).lower()
+        if "unauthorized" in msg or "forbidden" in msg or "invalid key" in msg or "401" in msg or "403" in msg:
+            logger.critical(f"Alpaca authentication failed during {context}: {exc}")
+            return AlpacaAuthError(
+                f"Alpaca API Authentication Failed: Invalid, expired, or revoked API Key/Secret. "
+                f"Please verify APCA_API_KEY_ID and APCA_API_SECRET_KEY at https://app.alpaca.markets (Raw error: {exc})"
+            )
+        if "rate limit" in msg or "429" in msg or "too many requests" in msg:
+            logger.warning(f"Alpaca rate limited during {context}: {exc}")
+            return AlpacaConnectionError(f"Alpaca rate limit encountered: {exc}")
+        if isinstance(exc, (ConnectionError, TimeoutError, OSError)) or "connection" in msg or "timeout" in msg or "502" in msg or "503" in msg or "504" in msg:
+            logger.warning(f"Alpaca network connection failed during {context}: {exc}")
+            return AlpacaConnectionError(f"Network connection error during {context}: {exc}")
+        
+        return AlpacaAPIError(f"Alpaca API error during {context}: {exc}")
 
     def __init__(self) -> None:
         load_dotenv()
@@ -194,10 +217,9 @@ class AlpacaClient:
             return {"order_id": str(order.id), "status": self._normalize_status(str(order.status))}
 
         except Exception as exc:
-            # Surface Alpaca errors as AlpacaAPIError so OMS retry logic applies
             msg = str(exc)
             logger.error(f"Alpaca order submission failed for {symbol}: {msg}")
-            raise AlpacaAPIError(msg) from exc
+            raise self._classify_exception(exc, f"submitting {side} order for {symbol}") from exc
 
     def get_order(self, account_id_or_order_id: str, order_id: str | None = None) -> dict[str, Any]:
         """Return the current status of an order.
@@ -223,7 +245,7 @@ class AlpacaClient:
             }
         except Exception as exc:
             logger.error(f"Failed to fetch order {actual_order_id}: {exc}")
-            raise AlpacaConnectionError(str(exc)) from exc
+            raise self._classify_exception(exc, f"fetching order {actual_order_id}") from exc
 
     def get_positions(self, account_id: str) -> dict[str, Any]:
         """Return current account positions and cash in OMS-expected format.
@@ -263,7 +285,7 @@ class AlpacaClient:
             }
         except Exception as exc:
             logger.error(f"Failed to sync Alpaca portfolio: {exc}")
-            raise AlpacaConnectionError(str(exc)) from exc
+            raise self._classify_exception(exc, "syncing portfolio positions and cash") from exc
 
     def get_open_orders(self, account_id: str) -> list[dict[str, Any]]:
         """Return all open (not yet filled/cancelled) orders from Alpaca.
@@ -292,4 +314,4 @@ class AlpacaClient:
             return result
         except Exception as exc:
             logger.error(f"Failed to fetch open orders from Alpaca: {exc}")
-            raise AlpacaConnectionError(str(exc)) from exc
+            raise self._classify_exception(exc, "fetching open orders") from exc

@@ -22,7 +22,7 @@ from src.data.cleaner import DataCleaner
 from src.data.fetcher import DataFetcher
 from src.data.store import DataStore
 from src.execution.oms import OrderManager
-from src.execution.alpaca_client import AlpacaClient
+from src.execution.alpaca_client import AlpacaClient, AlpacaAuthError
 from src.strategy.portfolio import PositionSizer
 from src.strategy.strategies import (
     MACrossoverStrategy,
@@ -146,12 +146,22 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
         logger.warning("Alpaca API credentials not configured in environment. Skipping execution cycle cleanly.")
         return
 
-    client = AlpacaClient()
-    account_id = os.getenv("APCA_API_KEY_ID", "alpaca_paper")
-    oms = OrderManager(client, account_id=account_id)
+    try:
+        client = AlpacaClient()
+        account_id = os.getenv("APCA_API_KEY_ID", "alpaca_paper")
+        oms = OrderManager(client, account_id=account_id)
 
-    # Sync portfolio state with broker
-    portfolio_state = oms.sync_portfolio()
+        # Sync portfolio state with broker
+        portfolio_state = oms.sync_portfolio()
+    except AlpacaAuthError as auth_err:
+        logger.critical(f"Alpaca credentials rejected: {auth_err}")
+        send_telegram_alert(
+            f"⚠️ **H.A.T.S AUTHENTICATION ERROR**\n"
+            f"Alpaca API rejected your credentials (HTTP 401/403 Unauthorized).\n\n"
+            f"**Resolution**: Please check or regenerate your Paper Trading API Keys at https://app.alpaca.markets and update `APCA_API_KEY_ID` and `APCA_API_SECRET_KEY`."
+        )
+        return
+
     cash_data = portfolio_state.get("cash", {})
     net_equity = cash_data.get("net_liquidity", 100000.0)
     cash_bal = cash_data.get("cash_balance", 100000.0)

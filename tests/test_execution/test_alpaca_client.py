@@ -27,3 +27,23 @@ def test_normalize_status(mock_trading_client):
     assert client._normalize_status('OrderStatus.CANCELED') == 'CANCELED'
     assert client._normalize_status('OrderStatus.REJECTED') == 'FAILED'
     assert client._normalize_status('OrderStatus.NEW') == 'SUBMITTED'
+
+
+@patch.dict(os.environ, {'APCA_API_KEY_ID': 'test_key', 'APCA_API_SECRET_KEY': 'test_secret'})
+@patch('alpaca.trading.client.TradingClient')
+def test_classify_exception_unauthorized(mock_trading_client):
+    from src.execution.alpaca_client import AlpacaAuthError
+    client = AlpacaClient()
+    raw_exc = Exception('{"message": "unauthorized."}')
+    classified = client._classify_exception(raw_exc, "test_context")
+    assert isinstance(classified, AlpacaAuthError)
+    assert "Authentication Failed" in str(classified)
+
+
+@patch.dict(os.environ, {'APCA_API_KEY_ID': 'test_key', 'APCA_API_SECRET_KEY': 'test_secret'})
+@patch('alpaca.trading.client.TradingClient')
+def test_classify_exception_network_timeout(mock_trading_client):
+    client = AlpacaClient()
+    raw_exc = TimeoutError("Connection timed out")
+    classified = client._classify_exception(raw_exc, "test_context")
+    assert isinstance(classified, AlpacaConnectionError)

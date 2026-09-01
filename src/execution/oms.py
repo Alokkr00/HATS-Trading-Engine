@@ -17,7 +17,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, TypeVar
 
-from src.execution.alpaca_client import AlpacaClient, AlpacaAPIError, AlpacaConnectionError
+from src.execution.alpaca_client import AlpacaClient, AlpacaAPIError, AlpacaConnectionError, AlpacaAuthError
 from src.execution.db_manager import DatabaseManager
 from src.execution.sector_resolver import SectorResolver
 from src.utils.logger import get_logger
@@ -207,13 +207,17 @@ class OrderManager:
         for attempt in range(1, max_retries + 1):
             try:
                 return func(*args, **kwargs)
+            except AlpacaAuthError as e:
+                # Do not retry on credential/authentication failures
+                logger.critical(f"Fatal authentication error encountered during execution: {e}")
+                raise
             except (AlpacaConnectionError, ConnectionError, TimeoutError) as e:
                 if attempt == max_retries:
                     logger.critical(
                         f"Transient connection error persisted after {max_retries} attempts: {e}"
                     )
                     raise AlpacaConnectionError(
-                        f"Transient connection error persisted after {max_retries} attempts"
+                        f"Transient connection error persisted after {max_retries} attempts: {e}"
                     ) from e
 
                 # Exponential backoff with jitter
@@ -224,7 +228,6 @@ class OrderManager:
                 time.sleep(delay)
             except AlpacaAPIError as e:
                 # Do not retry on non-transient API exceptions (margin violation, invalid order size, etc.)
-                # But rate limits are API errors; if they are rate limit errors, we could also log and fail
                 logger.debug(f"Non-transient AlpacaAPIError encountered: {e}")
                 raise
 

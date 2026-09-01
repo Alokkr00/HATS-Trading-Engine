@@ -378,3 +378,20 @@ def test_append_to_json_list_malformed_fallback(mock_client, temp_log_dir) -> No
     assert len(data) == 2
     assert data[0]["item"] == 1
     assert data[1]["item"] == 2
+
+
+def test_execute_with_retry_auth_error(mock_client, temp_log_dir) -> None:
+    """Verify that AlpacaAuthError is raised immediately without retrying."""
+    from src.execution.alpaca_client import AlpacaAuthError
+    oms = OrderManager(client=mock_client, account_id="acc123", log_dir=str(temp_log_dir))
+    
+    call_count = 0
+    def failing_func():
+        nonlocal call_count
+        call_count += 1
+        raise AlpacaAuthError("Unauthorized")
+
+    with pytest.raises(AlpacaAuthError):
+        oms._execute_with_retry(failing_func)
+
+    assert call_count == 1  # Must not retry 5 times
