@@ -22,6 +22,8 @@ from src.strategy.strategies import (
 from src.strategy.dual_momentum import DualMomentumStrategy
 from src.strategy.time_series_momentum import VolatilityScaledTrendStrategy
 from src.strategy.connors_rsi import ConnorsMeanReversionStrategy
+from src.strategy.opening_range_breakout import OpeningRangeBreakoutStrategy
+from src.strategy.vwap_reversion import IntradayVWAPStrategy
 from src.strategy.option_selector import select_option
 
 __all__ = [
@@ -36,5 +38,7 @@ __all__ = [
     "DualMomentumStrategy",
     "VolatilityScaledTrendStrategy",
     "ConnorsMeanReversionStrategy",
+    "OpeningRangeBreakoutStrategy",
+    "IntradayVWAPStrategy",
     "select_option",
 ]

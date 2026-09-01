@@ -835,10 +835,14 @@ def run_backtest_endpoint(payload: dict) -> dict[str, Any]:
     from src.strategy.dual_momentum import DualMomentumStrategy
     from src.strategy.time_series_momentum import VolatilityScaledTrendStrategy
     from src.strategy.connors_rsi import ConnorsMeanReversionStrategy
+    from src.strategy.opening_range_breakout import OpeningRangeBreakoutStrategy
+    from src.strategy.vwap_reversion import IntradayVWAPStrategy
     from src.backtest.engine import BacktestEngine
     from src.backtest.cost import CostModel
     
     strats = {
+        "OpeningRangeBreakout": OpeningRangeBreakoutStrategy,
+        "IntradayVWAP": IntradayVWAPStrategy,
         "MACrossover": MACrossoverStrategy,
         "RSIMeanReversion": RSIMeanReversionStrategy,
         "BollingerSqueeze": BollingerSqueezeStrategy,
