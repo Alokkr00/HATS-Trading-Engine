@@ -656,9 +656,10 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Run H.A.T.S Systematic Trading Cycle.")
-    parser.add_argument("--interval", "-i", type=str, default="1d", help="Candle interval timeframe (e.g. 1d, 1h, 15m).")
+    parser.add_argument("--interval", "-i", type=str, default="1d", help="Candle interval timeframe (e.g. 1d, 1h, 15m, 5m).")
     parser.add_argument("--options", "-o", action="store_true", help="Enable equity options trading mode instead of stocks.")
     parser.add_argument("--force", "-f", action="store_true", help="Force cycle execution during off-market hours.")
+    parser.add_argument("--continuous", "-c", action="store_true", help="Run continuously as an intraday trading daemon during market hours.")
     parser.add_argument("--report", "-r", action="store_true", help="Compile and transmit the weekly performance report manually.")
     parser.add_argument("--listener", "-l", action="store_true", help="Start the interactive Telegram Bot listener daemon.")
     args = parser.parse_args()
@@ -692,6 +693,20 @@ if __name__ == "__main__":
         except Exception as e:
             logger.critical(f"Telegram listener crashed: {e}", exc_info=True)
             sys.exit(1)
+
+    if args.continuous:
+        import time
+        interval_map = {"5m": 300, "15m": 900, "30m": 1800, "1h": 3600, "1d": 86400}
+        sleep_sec = interval_map.get(args.interval, 900)
+        logger.info(f"Starting continuous intraday trading loop (Interval: {args.interval}, Sleep: {sleep_sec}s)...")
+        while True:
+            try:
+                run_trading_cycle(interval=args.interval, use_options=args.options, force_run=args.force)
+            except Exception as e:
+                logger.error(f"Error in continuous cycle iteration: {e}", exc_info=True)
+                send_telegram_alert(f"⚠️ **H.A.T.S Cycle Warning**: {e}")
+            logger.info(f"Cycle completed. Sleeping for {sleep_sec}s until next candle evaluation...")
+            time.sleep(sleep_sec)
 
     try:
         run_trading_cycle(interval=args.interval, use_options=args.options, force_run=args.force)
