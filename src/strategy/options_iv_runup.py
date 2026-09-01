@@ -55,7 +55,7 @@ class OptionsIVRunupStrategy(BaseStrategy):
         # Default days_to_earnings to a large number
         df["days_to_earnings"] = 999.0
 
-        if symbol == "UNKNOWN":
+        if symbol == "UNKNOWN" or self.config.get("fast_mode", False):
             return df
 
         # Fetch all historical and upcoming earnings dates
@@ -127,6 +127,8 @@ class OptionsIVRunupStrategy(BaseStrategy):
     def _get_all_earnings_dates(self, symbol: str) -> list:
         """Fetch all historical and upcoming earnings dates from yfinance with caching."""
         global _EARNINGS_CACHE
+        if self.config.get("fast_mode", False):
+            return []
         if symbol in _EARNINGS_CACHE:
             return _EARNINGS_CACHE[symbol]
 
