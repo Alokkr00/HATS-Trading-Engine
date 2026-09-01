@@ -1,4 +1,4 @@
-"""FastAPI server for the Trading Bot dashboard."""
+"""FastAPI dashboard server — HATS Trading Engine."""
 
 from __future__ import annotations
 
