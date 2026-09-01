@@ -418,6 +418,39 @@ _signal_cache_last_updated: dt.datetime | None = None
 _CACHE_TTL_SECONDS = 60
 
 
+def get_live_price(symbol: str) -> float:
+    """Get real-time market price for a symbol via Alpaca API, Yahoo Finance, or base benchmark."""
+    sym = symbol.upper().strip()
+    
+    # 1. Try Alpaca API
+    try:
+        from src.execution.alpaca_client import AlpacaClient
+        client = AlpacaClient()
+        if client.is_configured():
+            trade = client._client.get_latest_trade(sym)
+            if trade and hasattr(trade, "price") and float(trade.price) > 0:
+                return float(trade.price)
+    except Exception:
+        pass
+
+    # 2. Try Yahoo fast price
+    try:
+        import yfinance as yf
+        t = yf.Ticker(sym)
+        p = t.fast_info.last_price
+        if p and float(p) > 0:
+            return float(p)
+    except Exception:
+        pass
+
+    # 3. Known default benchmark price
+    base_map = {
+        "AAPL": 225.50, "MSFT": 448.20, "SPY": 562.40, "QQQ": 486.10, "TSLA": 218.30,
+        "NVDA": 126.80, "META": 512.40, "GOOGL": 166.70, "AMZN": 182.50, "JPM": 212.90, "PLTR": 31.40
+    }
+    return float(base_map.get(sym, 100.0))
+
+
 def ensure_symbol_data(store: DataStore, symbol: str) -> pd.DataFrame | None:
     """Load cached market data or fetch/generate it on demand for cloud dashboard."""
     try:
@@ -450,7 +483,7 @@ def ensure_symbol_data(store: DataStore, symbol: str) -> pd.DataFrame | None:
     try:
         dates = pd.date_range(end=pd.Timestamp.now(tz="US/Eastern"), periods=504, freq="B")
         np.random.seed(abs(hash(symbol)) % (2**32))
-        base_price = 150.0 if symbol in ["AAPL", "QQQ", "SPY"] else 100.0
+        base_price = get_live_price(symbol)
         ret = np.random.normal(0.0004, 0.015, len(dates))
         close = base_price * np.exp(np.cumsum(ret))
         high = close * (1 + np.random.uniform(0.002, 0.015, len(dates)))
@@ -483,7 +516,7 @@ def get_signals() -> list[dict[str, Any]]:
 
     from src.config_loader import get_settings
     settings = get_settings()
-    watchlist = settings.get("watchlist", ["AAPL", "MSFT", "SPY", "QQQ", "TSLA"])
+    watchlist = settings.get("watchlist", ["AAPL", "MSFT", "SPY", "QQQ", "TSLA", "GOOGL", "AMZN", "NVDA", "META", "JPM", "PLTR"])
     store = DataStore(raw_dir=str(PROJECT_ROOT / "data" / "raw"))
 
     # Try loading from SQLite signal_cache table first (only if updated in last 5 minutes)
@@ -515,7 +548,7 @@ def get_signals() -> list[dict[str, Any]]:
                     if sym not in sqlite_signals:
                         sqlite_signals[sym] = {
                             "symbol": sym,
-                            "close_price": r[3],
+                            "close_price": float(r[3]),
                             "timestamp": r[4],
                             "MACrossover": 0,
                             "RSIMeanReversion": 0,
@@ -565,14 +598,17 @@ def get_signals() -> list[dict[str, Any]]:
             "SectorMomentum": 0,
             "OptionsIVRunup": 0,
             "BreadthThrustReversion": 0,
-            "close_price": 0.0,
-            "timestamp": None,
+            "close_price": get_live_price(symbol),
+            "timestamp": now_iso,
         }
 
         try:
             df = ensure_symbol_data(store, symbol)
             if df is not None and not df.empty:
-                signal_entry["close_price"] = float(df["close"].iloc[-1])
+                if "close" in df.columns:
+                    last_c = float(df["close"].iloc[-1])
+                    if last_c > 0:
+                        signal_entry["close_price"] = last_c
                 signal_entry["timestamp"] = df.index[-1].isoformat()
 
                 for strat in strategies:
