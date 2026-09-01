@@ -64,7 +64,7 @@ class BreadthThrustReversionStrategy(BaseStrategy):
         # 3. Add VIX data
         df["vix"] = self.vix_threshold  # Default to threshold if not found
         try:
-            vix_df = self.store.load("^VIX", tz="US/Eastern")
+            vix_df = self.store.load("^VIX", tz="America/New_York")
             if not vix_df.empty:
                 vix_df = vix_df.reindex(df.index).ffill().bfill()
                 df["vix"] = vix_df["close"].fillna(self.vix_threshold)

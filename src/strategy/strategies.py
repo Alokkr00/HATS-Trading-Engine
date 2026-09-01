@@ -1095,7 +1095,7 @@ class PairsTradingStrategy(BaseStrategy):
 
         from src.data.store import DataStore
         store = DataStore()
-        df_partner = store.load(partner, tz="US/Eastern")
+        df_partner = store.load(partner, tz="America/New_York")
         if df_partner is None or df_partner.empty:
             df["pairs_zscore"] = 0.0
             df["is_asset_a"] = 1.0 if is_asset_a else 0.0

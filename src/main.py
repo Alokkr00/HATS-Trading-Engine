@@ -204,7 +204,7 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
     price_data = {}
     for sym in watchlist:
         try:
-            p_df = store.load(sym, tz="US/Eastern")
+            p_df = store.load(sym, tz="America/New_York")
             if p_df is not None and not p_df.empty:
                 price_data[sym] = p_df
         except Exception:
@@ -213,7 +213,7 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
     # 4B. Market Regime Classification
     vix_val = None
     try:
-        vix_df = store.load("^VIX", tz="US/Eastern")
+        vix_df = store.load("^VIX", tz="America/New_York")
         if vix_df is not None and not vix_df.empty:
             vix_val = float(vix_df["close"].iloc[-1])
     except Exception:
@@ -298,7 +298,7 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
             if sym == "^VIX" or sym in inverse_map.values():
                 return sym_signals
 
-            df = store.load(sym, tz="US/Eastern")
+            df = store.load(sym, tz="America/New_York")
             if df is None or df.empty:
                 return sym_signals
 

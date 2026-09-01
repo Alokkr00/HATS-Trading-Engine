@@ -454,14 +454,14 @@ def get_live_price(symbol: str) -> float:
 def ensure_symbol_data(store: DataStore, symbol: str) -> pd.DataFrame:
     """Load cached market data or generate fast benchmark data for cloud dashboard with zero network latency."""
     try:
-        df = store.load(symbol, tz="US/Eastern")
+        df = store.load(symbol, tz="America/New_York")
         if df is not None and not df.empty and len(df) > 20:
             return df
     except Exception:
         pass
 
     # Instant resilient generation: geometric Brownian motion anchored to live price
-    dates = pd.date_range(end=pd.Timestamp.now(tz="US/Eastern"), periods=504, freq="B")
+    dates = pd.date_range(end=pd.Timestamp.now(tz="America/New_York"), periods=504, freq="B")
     np.random.seed(abs(hash(symbol)) % (2**32))
     base_price = get_live_price(symbol)
     ret = np.random.normal(0.0004, 0.015, len(dates))

@@ -158,17 +158,21 @@ def test_api_signals_generation(
     mock_store_instance = MagicMock()
     mock_datastore_cls.return_value = mock_store_instance
     
-    # Mock loaded DataFrame (simple series, timezone-aware)
+    # Mock loaded DataFrame (30 rows so ensure_symbol_data returns it, timezone-aware)
     import pandas as pd
     mock_df = pd.DataFrame(
-        {"close": [150.0, 151.0]},
-        index=pd.to_datetime(["2026-07-01", "2026-07-02"]).tz_localize("US/Eastern")
+        {"close": [float(i + 140) for i in range(30)],
+         "open": [float(i + 139) for i in range(30)],
+         "high": [float(i + 142) for i in range(30)],
+         "low": [float(i + 138) for i in range(30)],
+         "volume": [1_000_000.0] * 30},
+        index=pd.date_range("2026-06-01", periods=30, freq="B", tz="America/New_York")
     )
     mock_df.attrs["symbol"] = "AAPL"
     mock_store_instance.load.return_value = mock_df
 
     # Mock strategies to return signal DataFrames
-    mock_sig_df = pd.DataFrame({"signal": [0, 1]}, index=mock_df.index)
+    mock_sig_df = pd.DataFrame({"signal": [0] * 29 + [1]}, index=mock_df.index)
     
     mock_ma_inst = MagicMock()
     mock_ma_inst.name = "MACrossover"
@@ -200,11 +204,17 @@ def test_api_signals_generation(
     mock_br_inst.generate_signals.return_value = mock_sig_df
     mock_breadth.return_value = mock_br_inst
 
-    # Mock db to return empty signal cache so we force recalculation
-    mock_conn = MagicMock()
-    mock_conn.execute.return_value.fetchall.return_value = []
-    
-    with patch("src.dashboard.app.db.get_connection", return_value=mock_conn):
+    # Clear in-memory caches so we force fresh recalculation (not 60s TTL cache)
+    import src.dashboard.app as dash_app
+    dash_app._signal_in_memory_cache = {}
+    dash_app._signal_cache_last_updated = None
+
+    # Mock db.execute_query to return empty signal cache rows (force recalculation)
+    mock_cursor = MagicMock()
+    mock_cursor.fetchall.return_value = []
+
+    with patch("src.dashboard.app.db") as mock_db:
+        mock_db.execute_query.return_value = mock_cursor
         response = client.get("/api/signals")
         assert response.status_code == 200
         data = response.json()
@@ -212,7 +222,8 @@ def test_api_signals_generation(
         assert data[0]["symbol"] == "AAPL"
         assert data[0]["MACrossover"] == 1
         assert data[0]["SectorMomentum"] == 1
-        assert data[0]["close_price"] == 151.0
+        # close_price should match the last row of our mock DataFrame (140 + 29 = 169.0)
+        assert data[0]["close_price"] == pytest.approx(169.0, rel=1e-3)
 
 
 def test_api_health_with_logs(client):

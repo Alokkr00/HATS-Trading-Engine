@@ -72,7 +72,7 @@ class SectorMomentumStrategy(BaseStrategy):
         sector_closes = {}
         for sec in self.sectors:
             try:
-                sec_df = self.store.load(sec, tz="US/Eastern")
+                sec_df = self.store.load(sec, tz="America/New_York")
                 if not sec_df.empty:
                     # Align index to current df index
                     sec_df = sec_df.reindex(df.index).ffill().bfill()

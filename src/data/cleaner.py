@@ -16,8 +16,8 @@ from src.data.exceptions import ValidationError
 
 logger = logging.getLogger(__name__)
 
-# US/Eastern is the reference timezone for US equity market data
-MARKET_TZ = "US/Eastern"
+# America/New_York is the reference timezone for US equity market data
+MARKET_TZ = "America/New_York"
 
 
 class DataCleaner:
@@ -54,7 +54,7 @@ class DataCleaner:
         """Clean and validate an OHLCV DataFrame.
 
         Processing pipeline:
-            1. Ensure timezone-aware DatetimeIndex (US/Eastern).
+            1. Ensure timezone-aware DatetimeIndex (America/New_York).
             2. Sort by timestamp and remove duplicates.
             3. Forward-fill small gaps (≤ ``max_gap_fill_days``).
             4. Run OHLCV integrity checks.
