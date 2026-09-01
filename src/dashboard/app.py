@@ -848,69 +848,72 @@ def run_backtest_endpoint(payload: dict) -> dict[str, Any]:
     
     if not strategy_name or not symbol:
         raise HTTPException(status_code=400, detail="Missing strategy or symbol in request payload.")
-        
-    # Load cleaned historical data from Parquet, or fetch/generate on-demand
-    store = DataStore(raw_dir=str(PROJECT_ROOT / "data" / "raw"))
-    df = ensure_symbol_data(store, symbol)
-    if df is None or df.empty:
-        raise HTTPException(status_code=500, detail=f"Failed to load or generate market data for {symbol}")
-        
-    df.attrs["symbol"] = symbol
 
-    # Map strategy name to strategy instances
-    from src.strategy.strategies import (
-        MACrossoverStrategy,
-        RSIMeanReversionStrategy,
-        BollingerSqueezeStrategy,
-        IchimokuCloudStrategy,
-        PivotPointReversionStrategy,
-        SectorMomentumStrategy,
-        OptionsIVRunupStrategy,
-        BreadthThrustReversionStrategy,
-        MACDHistogramStrategy,
-        DonchianChannelBreakoutStrategy,
-        StochasticOscillatorStrategy,
-        ZScoreMeanReversionStrategy,
-        LinearRegressionChannelStrategy,
-        PairsTradingStrategy,
-    )
-    from src.strategy.dual_momentum import DualMomentumStrategy
-    from src.strategy.time_series_momentum import VolatilityScaledTrendStrategy
-    from src.strategy.connors_rsi import ConnorsMeanReversionStrategy
-    from src.strategy.opening_range_breakout import OpeningRangeBreakoutStrategy
-    from src.strategy.vwap_reversion import IntradayVWAPStrategy
-    from src.backtest.engine import BacktestEngine
-    from src.backtest.cost import CostModel
-    
-    strats = {
-        "OpeningRangeBreakout": OpeningRangeBreakoutStrategy,
-        "IntradayVWAP": IntradayVWAPStrategy,
-        "MACrossover": MACrossoverStrategy,
-        "RSIMeanReversion": RSIMeanReversionStrategy,
-        "BollingerSqueeze": BollingerSqueezeStrategy,
-        "IchimokuCloud": IchimokuCloudStrategy,
-        "PivotPointReversion": PivotPointReversionStrategy,
-        "SectorMomentum": SectorMomentumStrategy,
-        "OptionsIVRunup": OptionsIVRunupStrategy,
-        "BreadthThrustReversion": BreadthThrustReversionStrategy,
-        "MACDHistogram": MACDHistogramStrategy,
-        "DonchianBreakout": DonchianChannelBreakoutStrategy,
-        "StochasticOscillator": StochasticOscillatorStrategy,
-        "ZScoreReversion": ZScoreMeanReversionStrategy,
-        "LinearRegressionChannel": LinearRegressionChannelStrategy,
-        "PairsTrading": PairsTradingStrategy,
-        "DualMomentum": DualMomentumStrategy,
-        "VolatilityScaledTrend": VolatilityScaledTrendStrategy,
-        "ConnorsMeanReversion": ConnorsMeanReversionStrategy,
-    }
-    
-    if strategy_name not in strats:
-        raise HTTPException(status_code=400, detail=f"Invalid strategy name: {strategy_name}. Valid strategies: {list(strats.keys())}")
-        
     try:
+        # Load cleaned historical data from Parquet, or generate synthetic on-demand
+        store = DataStore(raw_dir=str(PROJECT_ROOT / "data" / "raw"))
+        df = ensure_symbol_data(store, symbol)
+        if df is None or df.empty:
+            raise ValueError(f"Failed to load or generate market data for {symbol}")
+
+        df.attrs["symbol"] = symbol
+
+        # Map strategy name to strategy instances
+        from src.strategy.strategies import (
+            MACrossoverStrategy,
+            RSIMeanReversionStrategy,
+            BollingerSqueezeStrategy,
+            IchimokuCloudStrategy,
+            PivotPointReversionStrategy,
+            SectorMomentumStrategy,
+            OptionsIVRunupStrategy,
+            BreadthThrustReversionStrategy,
+            MACDHistogramStrategy,
+            DonchianChannelBreakoutStrategy,
+            StochasticOscillatorStrategy,
+            ZScoreMeanReversionStrategy,
+            LinearRegressionChannelStrategy,
+            PairsTradingStrategy,
+        )
+        from src.strategy.dual_momentum import DualMomentumStrategy
+        from src.strategy.time_series_momentum import VolatilityScaledTrendStrategy
+        from src.strategy.connors_rsi import ConnorsMeanReversionStrategy
+        from src.strategy.opening_range_breakout import OpeningRangeBreakoutStrategy
+        from src.strategy.vwap_reversion import IntradayVWAPStrategy
+        from src.backtest.engine import BacktestEngine
+        from src.backtest.cost import CostModel
+
+        strats = {
+            "OpeningRangeBreakout": OpeningRangeBreakoutStrategy,
+            "IntradayVWAP": IntradayVWAPStrategy,
+            "MACrossover": MACrossoverStrategy,
+            "RSIMeanReversion": RSIMeanReversionStrategy,
+            "BollingerSqueeze": BollingerSqueezeStrategy,
+            "IchimokuCloud": IchimokuCloudStrategy,
+            "PivotPointReversion": PivotPointReversionStrategy,
+            "SectorMomentum": SectorMomentumStrategy,
+            "OptionsIVRunup": OptionsIVRunupStrategy,
+            "BreadthThrustReversion": BreadthThrustReversionStrategy,
+            "MACDHistogram": MACDHistogramStrategy,
+            "DonchianBreakout": DonchianChannelBreakoutStrategy,
+            "StochasticOscillator": StochasticOscillatorStrategy,
+            "ZScoreReversion": ZScoreMeanReversionStrategy,
+            "LinearRegressionChannel": LinearRegressionChannelStrategy,
+            "PairsTrading": PairsTradingStrategy,
+            "DualMomentum": DualMomentumStrategy,
+            "VolatilityScaledTrend": VolatilityScaledTrendStrategy,
+            "ConnorsMeanReversion": ConnorsMeanReversionStrategy,
+        }
+
+        if strategy_name not in strats:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid strategy name: {strategy_name}. Valid strategies: {list(strats.keys())}"
+            )
+
         strat_cls = strats[strategy_name]
         strat_instance = strat_cls(name=strategy_name, config={"check_look_ahead": False})
-        
+
         # Run BacktestEngine with cost model
         engine = BacktestEngine(
             strategy=strat_instance,
@@ -918,10 +921,10 @@ def run_backtest_endpoint(payload: dict) -> dict[str, Any]:
             cost_model=CostModel(spread_bps=1.5, slippage_bps=3.0)
         )
         results = engine.run(df)
-        
+
         metrics = results["metrics"]
         equity_curve = results["equity_curve"]
-        
+
         equity_data = []
         if hasattr(equity_curve, "items"):
             for date, value in equity_curve.items():
@@ -930,7 +933,7 @@ def run_backtest_endpoint(payload: dict) -> dict[str, Any]:
                     "date": date_str,
                     "value": float(round(float(value), 2))
                 })
-            
+
         profit_factor_val = metrics.get("profit_factor", 0.0)
         if profit_factor_val is None or math.isinf(profit_factor_val) or math.isnan(profit_factor_val):
             profit_factor_val = 0.0
@@ -948,8 +951,10 @@ def run_backtest_endpoint(payload: dict) -> dict[str, Any]:
             },
             "equity_curve": equity_data
         }
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to execute backtest in API: {e}", exc_info=True)
+        logger.error("Failed to execute backtest in API: %s", e, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Backtest execution failed: {e}")
 
 # -------------------------------------------------------------------------
