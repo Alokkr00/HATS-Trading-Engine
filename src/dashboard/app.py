@@ -492,12 +492,19 @@ def get_signals() -> list[dict[str, Any]]:
             "SELECT symbol, strategy_name, signal, close_price, bar_timestamp, updated_at FROM signal_cache;"
         ).fetchall()
         
-        # Check if rows are recent
+        # Check if rows are recent and contain valid non-zero prices
         if rows:
             is_valid = True
             for r in rows:
-                updated_at_dt = dt.datetime.fromisoformat(r[5])
-                if (now - updated_at_dt).total_seconds() > 300:  # 5 minutes expiry
+                if r[3] is None or float(r[3]) <= 0.0:
+                    is_valid = False
+                    break
+                try:
+                    updated_at_dt = dt.datetime.fromisoformat(r[5])
+                    if (now - updated_at_dt).total_seconds() > 300:  # 5 minutes expiry
+                        is_valid = False
+                        break
+                except Exception:
                     is_valid = False
                     break
             
