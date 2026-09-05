@@ -139,6 +139,97 @@ from src.utils.paths import (
 db = DatabaseManager(DB_PATH)
 
 
+# ============================================================
+# Background Trading Scheduler
+# Runs run_trading_cycle() every day at market open (09:35 ET)
+# while bot_running.flag is ACTIVE. This is the core execution
+# loop that places real trades via Alpaca.
+# ============================================================
+
+import threading
+import time as _time
+
+_scheduler_thread: threading.Thread | None = None
+_scheduler_stop = threading.Event()
+
+
+def _trading_scheduler_loop() -> None:
+    """Persistent background thread: waits for market open and runs the trading cycle."""
+    from src.main import run_trading_cycle
+    from src.utils.notifier import send_telegram_alert
+    import pytz
+
+    logger.info("Trading scheduler daemon started.")
+    send_telegram_alert("🤖 H.A.T.S Trading Scheduler started. Will run daily at market open (09:35 ET).")
+
+    et_tz = pytz.timezone("America/New_York")
+    last_run_date: str | None = None
+
+    while not _scheduler_stop.is_set():
+        try:
+            now_et = dt.datetime.now(et_tz)
+            today_str = now_et.strftime("%Y-%m-%d")
+
+            # Check if bot flag is active
+            bot_flag = EXECUTION_DIR / "bot_running.flag"
+            bot_active = bot_flag.exists() and bot_flag.read_text().strip() == "ACTIVE"
+
+            if not bot_active:
+                # Bot paused — sleep and check again in 1 minute
+                _scheduler_stop.wait(timeout=60)
+                continue
+
+            # Market hours: Mon-Fri, run at 09:35 ET (after open, before wash sale window)
+            is_weekday = now_et.weekday() < 5  # Mon=0, Fri=4
+            market_open_time = now_et.replace(hour=9, minute=35, second=0, microsecond=0)
+            market_close_time = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+            is_in_market_window = market_open_time <= now_et <= market_close_time
+
+            should_run = (
+                is_weekday
+                and is_in_market_window
+                and last_run_date != today_str
+            )
+
+            if should_run:
+                last_run_date = today_str
+                logger.info(f"Trading scheduler triggering daily cycle for {today_str}...")
+                try:
+                    run_trading_cycle(interval="1d", use_options=False, force_run=False)
+                    logger.info(f"Daily trading cycle completed for {today_str}.")
+                except Exception as cycle_err:
+                    logger.error(f"Trading cycle error: {cycle_err}", exc_info=True)
+                    send_telegram_alert(f"⚠️ H.A.T.S Daily Cycle Error: {cycle_err}")
+
+            # Sleep 5 minutes then re-check conditions
+            _scheduler_stop.wait(timeout=300)
+
+        except Exception as loop_err:
+            logger.error(f"Trading scheduler loop error: {loop_err}", exc_info=True)
+            _scheduler_stop.wait(timeout=60)
+
+    logger.info("Trading scheduler daemon stopped.")
+
+
+def _start_trading_scheduler() -> None:
+    """Start the background trading scheduler thread (idempotent)."""
+    global _scheduler_thread
+    if _scheduler_thread is not None and _scheduler_thread.is_alive():
+        return
+    _scheduler_stop.clear()
+    _scheduler_thread = threading.Thread(
+        target=_trading_scheduler_loop,
+        name="trading-scheduler",
+        daemon=True,
+    )
+    _scheduler_thread.start()
+    logger.info("Trading scheduler thread launched.")
+
+
+# Auto-start scheduler when module loads (Render keeps the uvicorn process alive)
+_start_trading_scheduler()
+
+
 @app.get("/api/auth/token", dependencies=[Depends(authenticate_user)])
 def get_ws_token(username: str = Depends(authenticate_user)) -> dict[str, str]:
     """Generate a single-use token valid for 30s to authorize WebSocket handshake."""
@@ -789,8 +880,10 @@ def post_toggle(active: bool) -> dict[str, Any]:
         if active:
             with open(flag_file, "w", encoding="utf-8") as f:
                 f.write("ACTIVE")
+            # Ensure the scheduler thread is running
+            _start_trading_scheduler()
             logger.info("Trading bot execution state toggled to: ACTIVE")
-            return {"status": "success", "active": True, "message": "Trading bot successfully activated."}
+            return {"status": "success", "active": True, "message": "Trading bot successfully activated. Will execute at next market open (09:35 ET)."}
         else:
             if flag_file.exists():
                 flag_file.unlink()
@@ -799,6 +892,24 @@ def post_toggle(active: bool) -> dict[str, Any]:
     except Exception as e:
         logger.error(f"Failed to toggle bot state: {e}")
         raise HTTPException(status_code=500, detail=f"Toggle failed: {e}")
+
+
+@app.post("/api/action/run-now", dependencies=[Depends(require_admin)])
+def post_run_now() -> dict[str, Any]:
+    """Manually trigger a forced trading cycle immediately (ignores market hours check)."""
+    def _run_cycle():
+        try:
+            from src.main import run_trading_cycle
+            logger.info("Manual trading cycle triggered via /api/action/run-now")
+            run_trading_cycle(interval="1d", use_options=False, force_run=True)
+            logger.info("Manual trading cycle completed.")
+        except Exception as e:
+            logger.error(f"Manual trading cycle error: {e}", exc_info=True)
+
+    t = threading.Thread(target=_run_cycle, name="manual-cycle", daemon=True)
+    t.start()
+    return {"status": "success", "message": "Trading cycle started in background. Check Telegram for results."}
+
 
 
 @app.websocket("/ws/live")

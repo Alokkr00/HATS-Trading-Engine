@@ -251,7 +251,7 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
         return
 
     # 4C. Instantiate Active Strategies
-    active_names = settings.get("active_strategies", ["SectorMomentum", "OptionsIVRunup", "BreadthThrustReversion", "MACDHistogram", "DonchianBreakout", "StochasticOscillator", "ZScoreReversion", "LinearRegressionChannel", "PairsTrading"])
+    active_names = settings.get("active_strategies", ["SectorMomentum", "OptionsIVRunup", "BreadthThrustReversion", "MACDHistogram", "DonchianBreakout", "StochasticOscillator", "ZScoreReversion", "MACrossover", "RSIMeanReversion", "BollingerSqueeze", "IchimokuCloud"])
     strategies = []
     for name in active_names:
         if name == "SectorMomentum":
@@ -272,19 +272,27 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
             strategies.append(LinearRegressionChannelStrategy("LinearRegressionChannel", config={"check_look_ahead": False}))
         elif name == "PairsTrading":
             strategies.append(PairsTradingStrategy("PairsTrading", config={"check_look_ahead": False}))
+        elif name == "MACrossover":
+            strategies.append(MACrossoverStrategy("MACrossover", config={"check_look_ahead": False}))
+        elif name == "RSIMeanReversion":
+            strategies.append(RSIMeanReversionStrategy("RSIMeanReversion", config={"check_look_ahead": False}))
+        elif name == "BollingerSqueeze":
+            strategies.append(BollingerSqueezeStrategy("BollingerSqueeze", config={"check_look_ahead": False}))
+        elif name == "IchimokuCloud":
+            strategies.append(IchimokuCloudStrategy("IchimokuCloud", config={"check_look_ahead": False}))
+        else:
+            logger.warning(f"Unknown strategy name in active_strategies: {name}. Skipping.")
 
     # Fallback to defaults if none defined
     if not strategies:
         strategies = [
-            SectorMomentumStrategy("SectorMomentum", config={"check_look_ahead": False}),
-            OptionsIVRunupStrategy("OptionsIVRunup", config={"check_look_ahead": False}),
-            BreadthThrustReversionStrategy("BreadthThrustReversion", config={"check_look_ahead": False}),
+            MACrossoverStrategy("MACrossover", config={"check_look_ahead": False}),
+            RSIMeanReversionStrategy("RSIMeanReversion", config={"check_look_ahead": False}),
             MACDHistogramStrategy("MACDHistogram", config={"check_look_ahead": False}),
             DonchianChannelBreakoutStrategy("DonchianBreakout", config={"check_look_ahead": False}),
             StochasticOscillatorStrategy("StochasticOscillator", config={"check_look_ahead": False}),
             ZScoreMeanReversionStrategy("ZScoreReversion", config={"check_look_ahead": False}),
-            LinearRegressionChannelStrategy("LinearRegressionChannel", config={"check_look_ahead": False}),
-            PairsTradingStrategy("PairsTrading", config={"check_look_ahead": False}),
+            BollingerSqueezeStrategy("BollingerSqueeze", config={"check_look_ahead": False}),
         ]
     sizer = PositionSizer()
 

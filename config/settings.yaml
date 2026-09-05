@@ -34,7 +34,7 @@ data:
   cache_dir: "data/cache"
   default_history_days: 3650       # 10 years of history by default to cover multi-cycle stress periods
   max_gap_days_forward_fill: 2    # forward-fill gaps up to this many days
-  timezone: "US/Eastern"
+  timezone: "America/New_York"
 
 # Fetcher settings
 fetcher:
@@ -77,7 +77,17 @@ inverse_map:
 
 # List of active strategies to execute
 active_strategies:
+  # Swing/Momentum (longer-timeframe, sparser signals)
   - SectorMomentum
-  - OptionsIVRunup
   - BreadthThrustReversion
+  - OptionsIVRunup
+  # Technical indicators (more frequent signals)
+  - MACrossover
+  - RSIMeanReversion
+  - MACDHistogram
+  - DonchianBreakout
+  - StochasticOscillator
+  - ZScoreReversion
+  - BollingerSqueeze
+  - IchimokuCloud
 
