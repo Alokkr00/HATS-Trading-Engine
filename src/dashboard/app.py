@@ -140,10 +140,9 @@ db = DatabaseManager(DB_PATH)
 
 
 # ============================================================
-# Background Trading Scheduler
+# Background Trading Scheduler & Bot State Management
 # Runs run_trading_cycle() every day at market open (09:35 ET)
-# while bot_running.flag is ACTIVE. This is the core execution
-# loop that places real trades via Alpaca.
+# while the bot is ACTIVE.
 # ============================================================
 
 import threading
@@ -153,14 +152,49 @@ _scheduler_thread: threading.Thread | None = None
 _scheduler_stop = threading.Event()
 
 
+def is_bot_active() -> bool:
+    """Check whether the trading bot is active.
+
+    Returns True if:
+    1. An explicit bot_running.flag exists and does NOT contain 'PAUSED'
+    2. OR bot_running.flag doesn't exist yet, but Alpaca credentials are configured
+       (enables seamless hands-free operation on cloud deployment).
+    Returns False only if bot_running.flag contains 'PAUSED'.
+    """
+    flag_file = EXECUTION_DIR / "bot_running.flag"
+    if flag_file.exists():
+        try:
+            return flag_file.read_text(encoding="utf-8").strip() != "PAUSED"
+        except Exception:
+            return True
+
+    # Cloud server default: active if credentials are configured
+    from src.execution.alpaca_client import AlpacaClient
+    return AlpacaClient.is_configured()
+
+
 def _trading_scheduler_loop() -> None:
     """Persistent background thread: waits for market open and runs the trading cycle."""
     from src.main import run_trading_cycle
     from src.utils.notifier import send_telegram_alert
+    from src.execution.alpaca_client import AlpacaClient
     import pytz
 
     logger.info("Trading scheduler daemon started.")
-    send_telegram_alert("🤖 H.A.T.S Trading Scheduler started. Will run daily at market open (09:35 ET).")
+    
+    # Sync initial portfolio state on startup if credentials exist
+    if AlpacaClient.is_configured():
+        try:
+            from src.execution.oms import OrderManager
+            client = AlpacaClient()
+            account_id = os.getenv("APCA_API_KEY_ID", "alpaca_paper")
+            oms = OrderManager(client, account_id=account_id)
+            oms.sync_portfolio()
+            logger.info("Initial portfolio state synced with Alpaca on scheduler launch.")
+        except Exception as sync_err:
+            logger.warning(f"Initial portfolio sync skipped on startup: {sync_err}")
+
+    send_telegram_alert("🤖 H.A.T.S Trading Scheduler active on cloud server. Scheduled daily for market open (09:35 ET).")
 
     et_tz = pytz.timezone("America/New_York")
     last_run_date: str | None = None
@@ -170,12 +204,9 @@ def _trading_scheduler_loop() -> None:
             now_et = dt.datetime.now(et_tz)
             today_str = now_et.strftime("%Y-%m-%d")
 
-            # Check if bot flag is active
-            bot_flag = EXECUTION_DIR / "bot_running.flag"
-            bot_active = bot_flag.exists() and bot_flag.read_text().strip() == "ACTIVE"
-
-            if not bot_active:
-                # Bot paused — sleep and check again in 1 minute
+            # Check if bot is active (auto-starts on cloud if credentials exist)
+            if not is_bot_active():
+                # Bot explicitly paused — sleep and check again in 1 minute
                 _scheduler_stop.wait(timeout=60)
                 continue
 
@@ -226,7 +257,7 @@ def _start_trading_scheduler() -> None:
     logger.info("Trading scheduler thread launched.")
 
 
-# Auto-start scheduler when module loads (Render keeps the uvicorn process alive)
+# Auto-start scheduler when module loads
 _start_trading_scheduler()
 
 
@@ -275,7 +306,7 @@ def get_js():
 def get_state() -> dict[str, Any]:
     """Retrieve current Order Management System state enriched with live position PnL calculations."""
     state_file = EXECUTION_DIR / "oms_state.json"
-    bot_active = (EXECUTION_DIR / "bot_running.flag").exists()
+    bot_active = is_bot_active()
 
     # Try loading from JSON file first (supports unit test mock setups)
     if state_file.exists():
@@ -295,6 +326,21 @@ def get_state() -> dict[str, Any]:
                     pass
             state["engine_status"] = engine_status
             portfolio = state.get("portfolio", {})
+
+            # If cash balance is uninitialized/zero, attempt to pull live figures from Alpaca
+            from src.execution.alpaca_client import AlpacaClient
+            if AlpacaClient.is_configured():
+                try:
+                    cash_obj = portfolio.get("cash", {})
+                    if float(cash_obj.get("net_liquidity", 0.0)) <= 0.0:
+                        client = AlpacaClient()
+                        acc = client.get_account()
+                        portfolio["cash"] = {
+                            "cash_balance": acc.get("cash", 0.0),
+                            "net_liquidity": acc.get("equity", 0.0),
+                        }
+                except Exception:
+                    pass
             positions = portfolio.get("positions", {})
             if positions:
                 store = DataStore(raw_dir=str(PROJECT_ROOT / "data" / "raw"))
@@ -742,6 +788,66 @@ def get_health() -> dict[str, Any]:
             health_data["log_entries"] = [f"Failed to read logs: {e}"]
 
     return health_data
+
+
+@app.get("/api/system/status", dependencies=[Depends(authenticate_user)])
+def get_system_status() -> dict[str, Any]:
+    """Audit server configuration, environment variables, broker connectivity, and scheduler."""
+    import pytz
+    from src.execution.alpaca_client import AlpacaClient
+
+    et_tz = pytz.timezone("America/New_York")
+    now_utc = dt.datetime.now(dt.timezone.utc)
+    now_et = dt.datetime.now(et_tz)
+
+    key = os.getenv("APCA_API_KEY_ID", "").strip()
+    secret = os.getenv("APCA_API_SECRET_KEY", "").strip()
+    tg_token = os.getenv("TELEGRAM_BOT_TOKEN", "").strip()
+    tg_chat = os.getenv("TELEGRAM_CHAT_ID", "").strip()
+
+    masked_key = f"{key[:4]}...{key[-4:]}" if len(key) >= 8 else ("SET" if key else "MISSING")
+
+    alpaca_info: dict[str, Any] = {
+        "configured": AlpacaClient.is_configured(),
+        "connected": False,
+    }
+    if AlpacaClient.is_configured():
+        try:
+            client = AlpacaClient()
+            acc = client.get_account()
+            alpaca_info.update({
+                "connected": True,
+                "account_id": acc.get("id"),
+                "account_status": acc.get("status"),
+                "cash": acc.get("cash"),
+                "equity": acc.get("equity"),
+                "buying_power": acc.get("buying_power"),
+                "paper_mode": client.paper,
+            })
+        except Exception as exc:
+            alpaca_info["error"] = str(exc)
+
+    is_weekday = now_et.weekday() < 5
+    m_open = now_et.replace(hour=9, minute=30, second=0, microsecond=0)
+    m_close = now_et.replace(hour=16, minute=0, second=0, microsecond=0)
+    is_market_open = is_weekday and (m_open <= now_et <= m_close)
+
+    return {
+        "status": "ONLINE",
+        "time_utc": now_utc.strftime("%Y-%m-%d %H:%M:%S UTC"),
+        "time_et": now_et.strftime("%Y-%m-%d %H:%M:%S ET"),
+        "market_open": is_market_open,
+        "bot_active": is_bot_active(),
+        "scheduler_alive": _scheduler_thread is not None and _scheduler_thread.is_alive(),
+        "environment": {
+            "apca_key_configured": bool(key),
+            "apca_key_preview": masked_key,
+            "apca_secret_configured": bool(secret),
+            "alpaca_paper": os.getenv("ALPACA_PAPER", "1"),
+            "telegram_configured": bool(tg_token and tg_chat),
+        },
+        "alpaca": alpaca_info,
+    }
 
 
 @app.get("/api/performance", dependencies=[Depends(authenticate_user)])

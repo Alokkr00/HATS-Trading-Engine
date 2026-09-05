@@ -1,8 +1,10 @@
 name: Automated Daily Trading Cycle
 
 on:
-  # Run Monday through Friday at 20:05 UTC (4:05 PM US Eastern Time - Market Close)
   schedule:
+    # Run Monday through Friday at 13:35 UTC (9:35 AM US Eastern Time - Market Open)
+    - cron: '35 13 * * 1-5'
+    # Run Monday through Friday at 20:05 UTC (4:05 PM US Eastern Time - Market Close)
     - cron: '5 20 * * 1-5'
   # Allows you to manually trigger a cycle from GitHub website/app anytime
   workflow_dispatch:
@@ -28,21 +30,45 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Trigger Trading Cycle on Live Render Server
+      id: trigger_render
+      continue-on-error: true
+      run: |
+        echo "Triggering Render server at https://hats-ae7x.onrender.com/api/action/run-now..."
+        PASS="${{ secrets.DASHBOARD_PASSWORD }}"
+        [ -z "$PASS" ] && PASS="hats_secure_pass"
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://hats-ae7x.onrender.com/api/action/run-now" \
+          -u "admin:$PASS" \
+          -H "Content-Type: application/json" \
+          --max-time 60 || echo "000")
+        echo "Render HTTP Status: $HTTP_CODE"
+        if [ "$HTTP_CODE" = "200" ]; then
+          echo "Render server successfully triggered and executing trading cycle!"
+          echo "rendered=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "Render server returned $HTTP_CODE. Proceeding with GitHub runner execution fallback."
+          echo "rendered=false" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Checkout Code
+      if: steps.trigger_render.outputs.rendered != 'true'
       uses: actions/checkout@v4
 
     - name: Set up Python
+      if: steps.trigger_render.outputs.rendered != 'true'
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
         cache: 'pip'
 
     - name: Install Dependencies
+      if: steps.trigger_render.outputs.rendered != 'true'
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Execute H.A.T.S Trading Cycle
+    - name: Execute Fallback Trading Cycle on GitHub Runner
+      if: steps.trigger_render.outputs.rendered != 'true'
       env:
         PYTHONPATH: .
         TZ: America/New_York

@@ -95,6 +95,33 @@ class AlpacaClient:
         mode = "PAPER" if paper else "LIVE"
         logger.info(f"AlpacaClient initialised in {mode} mode.")
 
+    @classmethod
+    def is_configured(cls) -> bool:
+        """Check whether Alpaca API credentials are present in the environment."""
+        load_dotenv()
+        key = os.getenv("APCA_API_KEY_ID", "").strip()
+        secret = os.getenv("APCA_API_SECRET_KEY", "").strip()
+        return bool(key and secret and not key.startswith("mock_"))
+
+    def get_account(self) -> dict[str, Any]:
+        """Return account financial details and status from Alpaca."""
+        try:
+            acc = self._client.get_account()
+            return {
+                "id": str(acc.id),
+                "status": str(acc.status),
+                "currency": str(acc.currency),
+                "cash": float(acc.cash or 0),
+                "equity": float(acc.equity or 0),
+                "buying_power": float(acc.buying_power or 0),
+                "portfolio_value": float(acc.portfolio_value or 0),
+                "pattern_day_trader": bool(getattr(acc, "pattern_day_trader", False)),
+                "trading_blocked": bool(getattr(acc, "trading_blocked", False)),
+            }
+        except Exception as exc:
+            logger.error(f"Failed to fetch Alpaca account: {exc}")
+            raise self._classify_exception(exc, "fetching account") from exc
+
     # ------------------------------------------------------------------
     # Status normalisation
     # Alpaca returns enum strings like "OrderStatus.NEW", "OrderStatus.FILLED".
