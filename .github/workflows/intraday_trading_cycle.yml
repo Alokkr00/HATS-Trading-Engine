@@ -1,10 +1,11 @@
-name: Automated Intraday Trading Cycle (Hourly)
+name: Automated Intraday Trading Cycle (Every 15 min)
 
 on:
-  # Runs every hour strictly INSIDE US market hours:
-  # 14:30-19:30 UTC = 10:30 AM - 3:30 PM ET (Mon-Fri only, never after close)
+  # Runs every 15 minutes strictly inside US market hours:
+  # 14:00-19:45 UTC = 10:00 AM - 3:45 PM ET (Mon-Fri only)
+  # is_market_open() in main.py handles any edge cases (holidays, early close)
   schedule:
-    - cron: '30 14-19 * * 1-5'
+    - cron: '*/15 14-19 * * 1-5'
   workflow_dispatch:
 
 jobs:
