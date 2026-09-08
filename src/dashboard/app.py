@@ -1002,20 +1002,29 @@ def post_toggle(active: bool) -> dict[str, Any]:
 
 @app.post("/api/action/run-now", dependencies=[Depends(require_admin)])
 def post_run_now() -> dict[str, Any]:
-    """Manually trigger a forced trading cycle immediately (ignores market hours check)."""
+    """Manually trigger a trading cycle. Respects market hours — will not place orders outside 9:30 AM–4:00 PM ET."""
     def _run_cycle():
         try:
             from src.main import run_trading_cycle
+            from src.utils.helpers import is_market_open
             logger.info("Manual trading cycle triggered via /api/action/run-now")
-            run_trading_cycle(interval="1d", use_options=False, force_run=True)
+            if not is_market_open():
+                logger.info("run-now called outside market hours — data refresh only, no orders placed.")
+                send_telegram_alert("ℹ️ Manual cycle triggered outside market hours. Data refreshed but no orders placed.")
+                # Still refresh data even outside market hours for signal preview
+                run_trading_cycle(interval="1d", use_options=False, force_run=True)
+                return
+            run_trading_cycle(interval="1d", use_options=False, force_run=False)
             logger.info("Manual trading cycle completed.")
         except Exception as e:
             logger.error(f"Manual trading cycle error: {e}", exc_info=True)
 
     t = threading.Thread(target=_run_cycle, name="manual-cycle", daemon=True)
     t.start()
-    return {"status": "success", "message": "Trading cycle started in background. Check Telegram for results."}
-
+    from src.utils.helpers import is_market_open
+    if is_market_open():
+        return {"status": "success", "message": "Trading cycle started during market hours. Real orders will be placed. Check Telegram for results."}
+    return {"status": "success", "message": "Market is currently closed. Data will be refreshed but no orders placed until next market open (9:30 AM ET)."}
 
 
 @app.websocket("/ws/live")
