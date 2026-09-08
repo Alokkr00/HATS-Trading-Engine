@@ -151,7 +151,7 @@ H.A.T.S includes a multi-agent quantitative research copilot built on **LangGrap
 ## 🌐 Live Dashboards & Cloud Deployment
 
 * **Live Web Dashboard (Render Cloud)**: **[https://hats-ae7x.onrender.com](https://hats-ae7x.onrender.com)**  
-  *(Login: `admin` / `hats_secure_pass`)*
+  *(Login credentials set via `DASHBOARD_USERNAME` / `DASHBOARD_PASSWORD` environment variables on Render)*
   * Live portfolio equity curve, open positions, and telemetry.
   * Real-time Strategy Simulation Portal (run on-demand backtests on any stock or ETF).
   * Immutably logged Forward-Testing Decision Audits.
@@ -196,8 +196,8 @@ TELEGRAM_BOT_TOKEN="your_bot_token"
 TELEGRAM_CHAT_ID="your_chat_id"
 
 # Web Dashboard Authentication
-DASHBOARD_USERNAME=admin
-DASHBOARD_PASSWORD=hats_secure_pass
+DASHBOARD_USERNAME=your_username
+DASHBOARD_PASSWORD=your_secure_password
 
 # AI Copilot (Optional)
 GEMINI_API_KEY=your_gemini_api_key
