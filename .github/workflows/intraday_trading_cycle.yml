@@ -13,21 +13,45 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Trigger Intraday Cycle on Live Render Server
+      id: trigger_render
+      continue-on-error: true
+      run: |
+        echo "Pinging Render server for intraday cycle..."
+        PASS="${{ secrets.DASHBOARD_PASSWORD }}"
+        [ -z "$PASS" ] && PASS="hats_secure_pass"
+        HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "https://hats-ae7x.onrender.com/api/action/run-now" \
+          -u "admin:$PASS" \
+          -H "Content-Type: application/json" \
+          --max-time 60 || echo "000")
+        echo "Render HTTP Status: $HTTP_CODE"
+        if [ "$HTTP_CODE" = "200" ]; then
+          echo "Render successfully triggered intraday cycle!"
+          echo "rendered=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "Render returned $HTTP_CODE - falling back to GitHub runner."
+          echo "rendered=false" >> "$GITHUB_OUTPUT"
+        fi
+
     - name: Checkout Code
+      if: steps.trigger_render.outputs.rendered != 'true'
       uses: actions/checkout@v4
 
     - name: Set up Python
+      if: steps.trigger_render.outputs.rendered != 'true'
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
         cache: 'pip'
 
     - name: Install Dependencies
+      if: steps.trigger_render.outputs.rendered != 'true'
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Execute Intraday 15m H.A.T.S Cycle (market hours only)
+    - name: Fallback Intraday 15m Cycle on GitHub Runner
+      if: steps.trigger_render.outputs.rendered != 'true'
       env:
         PYTHONPATH: .
         TZ: America/New_York
@@ -38,6 +62,5 @@ jobs:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
       run: |
-        # No --force flag: is_market_open() check in main.py will skip gracefully
-        # if somehow cron fires slightly outside market hours (e.g. holiday)
+        # No --force: is_market_open() blocks orders outside market hours
         python -m src.main --interval 15m
