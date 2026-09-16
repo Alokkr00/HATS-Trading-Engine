@@ -172,8 +172,8 @@ def test_calculate_size_options_delta() -> None:
 
 
 def test_check_portfolio_limits_positions_count() -> None:
-    """Test portfolio sizer enforces max 6 concurrent positions constraint."""
-    sizer = PositionSizer()
+    """Test portfolio sizer enforces max concurrent positions constraint."""
+    sizer = PositionSizer(max_portfolio_positions=6)
 
     # 5 existing positions — new one should be allowed
     positions_5 = [{"sector": "Technology", "weight": 0.05} for _ in range(5)]
@@ -187,10 +187,18 @@ def test_check_portfolio_limits_positions_count() -> None:
     positions_7 = [{"sector": "Technology", "weight": 0.05} for _ in range(7)]
     assert sizer.check_portfolio_limits(positions_7, "Finance", new_trade_weight=0.05) is False
 
+    # Default config (10 positions from risk_defaults.yaml)
+    sizer_default = PositionSizer()
+    assert sizer_default.max_portfolio_positions >= 10
+    positions_9 = [{"sector": "Technology", "weight": 0.05} for _ in range(9)]
+    assert sizer_default.check_portfolio_limits(positions_9, "Finance", new_trade_weight=0.05) is True
+    positions_10 = [{"sector": "Technology", "weight": 0.05} for _ in range(sizer_default.max_portfolio_positions)]
+    assert sizer_default.check_portfolio_limits(positions_10, "Finance", new_trade_weight=0.05) is False
+
 
 def test_check_portfolio_limits_sector_exposure_dict() -> None:
-    """Test portfolio sizer enforces max 25% sector exposure using dictionary positions."""
-    sizer = PositionSizer()
+    """Test portfolio sizer enforces max sector exposure using dictionary positions."""
+    sizer = PositionSizer(max_sector_exposure_pct=0.25)
 
     # Normal case: existing sector weight = 15%, adding 10% new trade = 25% (allowed)
     positions_ok = [
@@ -219,7 +227,7 @@ def test_check_portfolio_limits_sector_exposure_dict() -> None:
 
 def test_check_portfolio_limits_sector_exposure_object() -> None:
     """Test portfolio sizer enforces sector concentration using object-based positions."""
-    sizer = PositionSizer()
+    sizer = PositionSizer(max_sector_exposure_pct=0.25)
 
     # Tech sector: 10% + 5% = 15%. Adding new trade with weight 10% = 25% (allowed)
     positions_ok = [
@@ -240,7 +248,7 @@ def test_check_portfolio_limits_sector_exposure_object() -> None:
 
 def test_check_portfolio_limits_fallback_weight() -> None:
     """Test portfolio sizer handles positions missing weight but having percent or no weight attributes."""
-    sizer = PositionSizer()
+    sizer = PositionSizer(max_sector_exposure_pct=0.25)
 
     # Position using percent instead of weight: 10% + 10% = 20%. Add 5% = 25% (allowed)
     positions_percent = [
@@ -259,6 +267,7 @@ def test_check_portfolio_limits_fallback_weight() -> None:
     assert sizer.check_portfolio_limits(positions_no_weight, "Technology", new_trade_weight=0.05) is True
     # Adding 6% = 26% (rejected)
     assert sizer.check_portfolio_limits(positions_no_weight, "Technology", new_trade_weight=0.06) is False
+
 
 
 def test_calculate_size_with_slippage() -> None:

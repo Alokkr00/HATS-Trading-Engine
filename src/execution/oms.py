@@ -238,6 +238,7 @@ class OrderManager:
         qty: int,
         price: float | None = None,
         stop_price: float | None = None,
+        take_profit: float | None = None,
     ) -> str | None:
         """Validate, log intent, and place a trade with Alpaca.
 
@@ -246,7 +247,8 @@ class OrderManager:
             side: 'BUY' or 'SELL'.
             qty: Quantity to trade.
             price: Limit price. None for Market order.
-            stop_price: Stop price for stop or stop-limit order.
+            stop_price: Stop price for stop or bracket order.
+            take_profit: Limit price for take-profit bracket leg.
 
         Returns:
             The broker-assigned order ID (or client_order_id) if submitted, otherwise None.
@@ -271,6 +273,9 @@ class OrderManager:
         if stop_price is not None and stop_price <= 0:
             raise ValueError("Stop price must be greater than zero if provided.")
 
+        if take_profit is not None and take_profit <= 0:
+            raise ValueError("Take-profit price must be greater than zero if provided.")
+
         client_order_id = f"oms_{uuid.uuid4().hex}"
         
         # 1. Log trade intent (PENDING_SUBMIT)
@@ -282,6 +287,7 @@ class OrderManager:
             "qty": qty,
             "price": price,
             "stop_price": stop_price,
+            "take_profit": take_profit,
             "status": "PENDING_SUBMIT",
             "filled_qty": 0,
             "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
@@ -303,6 +309,7 @@ class OrderManager:
                 qty=qty,
                 price=price,
                 stop_price=stop_price,
+                take_profit=take_profit,
                 client_order_id=client_order_id,
             )
             latency_ms = int((time.perf_counter() - start_time) * 1000)
@@ -441,8 +448,9 @@ class OrderManager:
             auth_str = f"{username}:{password}"
             auth_b64 = base64.b64encode(auth_str.encode("utf-8")).decode("utf-8")
             
+            dashboard_url = os.getenv("DASHBOARD_INTERNAL_URL", "http://127.0.0.1:8000").rstrip("/")
             req = urllib.request.Request(
-                "http://127.0.0.1:8000/api/broadcast",
+                f"{dashboard_url}/api/broadcast",
                 data=json.dumps({"type": "transaction_logged", "data": transaction}).encode("utf-8"),
                 headers={
                     "Content-Type": "application/json",
@@ -586,14 +594,18 @@ class OrderManager:
             positions = portfolio_data.get("positions", [])
             cash = portfolio_data.get("cash", {})
 
-            # Enrich positions with sector mapping dynamically for risk sizer checks
+            from src.utils.helpers import normalize_position
+
+            normalized_positions = []
             for pos in positions:
-                symbol = pos.get("symbol")
+                norm_pos = normalize_position(pos)
+                symbol = norm_pos.get("symbol")
                 if symbol:
-                    pos["sector"] = self.sector_resolver.resolve(symbol)
+                    norm_pos["sector"] = self.sector_resolver.resolve(symbol)
+                normalized_positions.append(norm_pos)
 
             self.state["portfolio"] = {
-                "positions": {pos["symbol"]: pos for pos in positions},
+                "positions": {pos["symbol"]: pos for pos in normalized_positions},
                 "cash": cash,
                 "updated_at": dt.datetime.now(dt.timezone.utc).isoformat(),
             }

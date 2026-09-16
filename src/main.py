@@ -40,6 +40,11 @@ from src.strategy.strategies import (
     LinearRegressionChannelStrategy,
     PairsTradingStrategy,
 )
+from src.strategy.dual_momentum import DualMomentumStrategy
+from src.strategy.time_series_momentum import VolatilityScaledTrendStrategy
+from src.strategy.connors_rsi import ConnorsMeanReversionStrategy
+from src.strategy.opening_range_breakout import OpeningRangeBreakoutStrategy
+from src.strategy.vwap_reversion import IntradayVWAPStrategy
 from src.strategy.regime import MarketRegimeClassifier
 from src.risk.circuit_breaker import CircuitBreaker
 from src.risk.heat_tracker import PortfolioHeatTracker
@@ -51,16 +56,23 @@ from src.utils.notifier import send_telegram_alert
 logger = get_logger(__name__)
 
 
-def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run: bool = False) -> None:
+def run_trading_cycle(
+    interval: str = "1d",
+    use_options: bool = False,
+    force_run: bool = False,
+    dry_run: bool = False,
+) -> None:
     """Run a single systematic trading cycle for the given interval timeframe."""
-    logger.info(f"Starting systematic trading cycle for interval: {interval} (Options Mode: {use_options})...")
+    mode_str = " [DRY-RUN HEALTH CHECK]" if dry_run else ""
+    logger.info(f"Starting systematic trading cycle for interval: {interval} (Options Mode: {use_options}){mode_str}...")
 
-    # 0. Market Hours Check
+    # 0. Market Hours Check (bypassed if force_run or dry_run)
     from src.utils.helpers import is_market_open
-    if not force_run and not is_market_open():
+    if not force_run and not dry_run and not is_market_open():
         logger.info("Market is closed. Skipping trading cycle.")
         send_telegram_alert("ℹ️ H.A.T.S cycle skipped — market is closed.")
         return
+
 
     # 1. Load configuration and credentials
     load_env()
@@ -142,25 +154,45 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
     # 3. Initialize Alpaca Client and Order Management System (OMS)
     apca_key = os.getenv("APCA_API_KEY_ID", "").strip()
     apca_secret = os.getenv("APCA_API_SECRET_KEY", "").strip()
-    if not apca_key or not apca_secret or apca_key.startswith("mock_"):
+    is_apca_configured = bool(apca_key and apca_secret and not apca_key.startswith("mock_"))
+
+    if not is_apca_configured and not dry_run:
         logger.warning("Alpaca API credentials not configured in environment. Skipping execution cycle cleanly.")
         return
 
     try:
-        client = AlpacaClient()
-        account_id = os.getenv("APCA_API_KEY_ID", "alpaca_paper")
-        oms = OrderManager(client, account_id=account_id)
-
-        # Sync portfolio state with broker
-        portfolio_state = oms.sync_portfolio()
+        if is_apca_configured:
+            client = AlpacaClient()
+            account_id = os.getenv("APCA_API_KEY_ID", "alpaca_paper")
+            oms = OrderManager(client, account_id=account_id)
+            portfolio_state = oms.sync_portfolio()
+        else:
+            from unittest.mock import MagicMock
+            client = MagicMock()
+            oms = OrderManager(client, account_id="dry_run_sim")
+            portfolio_state = {
+                "cash": {"net_liquidity": 100000.0, "cash_balance": 100000.0},
+                "positions": {}
+            }
+            logger.info("[DRY-RUN] Alpaca credentials not configured; using simulated paper portfolio ($100,000 equity).")
     except AlpacaAuthError as auth_err:
-        logger.critical(f"Alpaca credentials rejected: {auth_err}")
-        send_telegram_alert(
-            f"⚠️ **H.A.T.S AUTHENTICATION ERROR**\n"
-            f"Alpaca API rejected your credentials (HTTP 401/403 Unauthorized).\n\n"
-            f"**Resolution**: Please check or regenerate your Paper Trading API Keys at https://app.alpaca.markets and update `APCA_API_KEY_ID` and `APCA_API_SECRET_KEY`."
-        )
-        return
+        if dry_run:
+            from unittest.mock import MagicMock
+            client = MagicMock()
+            oms = OrderManager(client, account_id="dry_run_sim")
+            portfolio_state = {
+                "cash": {"net_liquidity": 100000.0, "cash_balance": 100000.0},
+                "positions": {}
+            }
+            logger.warning(f"[DRY-RUN] Alpaca credentials rejected ({auth_err}). Continuing dry-run with simulated $100,000 portfolio.")
+        else:
+            logger.critical(f"Alpaca credentials rejected: {auth_err}")
+            send_telegram_alert(
+                f"⚠️ **H.A.T.S AUTHENTICATION ERROR**\n"
+                f"Alpaca API rejected your credentials (HTTP 401/403 Unauthorized).\n\n"
+                f"**Resolution**: Please check or regenerate your Paper Trading API Keys at https://app.alpaca.markets and update `APCA_API_KEY_ID` and `APCA_API_SECRET_KEY`."
+            )
+            return
 
     cash_data = portfolio_state.get("cash", {})
     net_equity = cash_data.get("net_liquidity", 100000.0)
@@ -204,7 +236,7 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
     price_data = {}
     for sym in watchlist:
         try:
-            p_df = store.load(sym, tz="America/New_York")
+            p_df = store.load_safe(sym, tz="America/New_York")
             if p_df is not None and not p_df.empty:
                 price_data[sym] = p_df
         except Exception:
@@ -213,7 +245,7 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
     # 4B. Market Regime Classification
     vix_val = None
     try:
-        vix_df = store.load("^VIX", tz="America/New_York")
+        vix_df = store.load_safe("^VIX", tz="America/New_York")
         if vix_df is not None and not vix_df.empty:
             vix_val = float(vix_df["close"].iloc[-1])
     except Exception:
@@ -280,6 +312,18 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
             strategies.append(BollingerSqueezeStrategy("BollingerSqueeze", config={"check_look_ahead": False}))
         elif name == "IchimokuCloud":
             strategies.append(IchimokuCloudStrategy("IchimokuCloud", config={"check_look_ahead": False}))
+        elif name == "PivotPointReversion":
+            strategies.append(PivotPointReversionStrategy("PivotPointReversion", config={"check_look_ahead": False}))
+        elif name == "DualMomentum":
+            strategies.append(DualMomentumStrategy("DualMomentum", config={"check_look_ahead": False}))
+        elif name == "VolatilityScaledTrend":
+            strategies.append(VolatilityScaledTrendStrategy("VolatilityScaledTrend", config={"check_look_ahead": False}))
+        elif name == "ConnorsRSI":
+            strategies.append(ConnorsMeanReversionStrategy("ConnorsRSI", config={"check_look_ahead": False}))
+        elif name == "OpeningRangeBreakout":
+            strategies.append(OpeningRangeBreakoutStrategy("OpeningRangeBreakout", config={"check_look_ahead": False}))
+        elif name == "IntradayVWAP":
+            strategies.append(IntradayVWAPStrategy("IntradayVWAP", config={"check_look_ahead": False}))
         else:
             logger.warning(f"Unknown strategy name in active_strategies: {name}. Skipping.")
 
@@ -306,12 +350,24 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
             if sym == "^VIX" or sym in inverse_map.values():
                 return sym_signals
 
-            df = store.load(sym, tz="America/New_York")
+            df = store.load_safe(sym, tz="America/New_York")
             if df is None or df.empty:
                 return sym_signals
 
             last_close = float(df["close"].iloc[-1])
-            last_atr = float(df["atr_14"].iloc[-1]) if "atr_14" in df.columns else 1.0
+
+            # Pre-compute true range and atr_14 on raw OHLCV if missing
+            if "atr_14" not in df.columns:
+                if len(df) >= 2:
+                    prev_close = df["close"].shift(1)
+                    tr = pd.concat([
+                        df["high"] - df["low"],
+                        (df["high"] - prev_close).abs(),
+                        (df["low"] - prev_close).abs()
+                    ], axis=1).max(axis=1)
+                    df["atr_14"] = tr.ewm(alpha=1.0 / 14, min_periods=1, adjust=False).mean().fillna(last_close * 0.02)
+                else:
+                    df["atr_14"] = max(0.01, last_close * 0.02)
 
             for strat in strategies:
                 sig_df = strat.generate_signals(df)
@@ -320,12 +376,24 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
 
                 signal = int(sig_df["signal"].iloc[-1])
                 if signal != 0:
+                    strat_atr = None
+                    if "atr_14" in sig_df.columns:
+                        val = sig_df["atr_14"].iloc[-1]
+                        if pd.notna(val) and float(val) > 0.0:
+                            strat_atr = float(val)
+                    if strat_atr is None and "atr_14" in df.columns:
+                        val = df["atr_14"].iloc[-1]
+                        if pd.notna(val) and float(val) > 0.0:
+                            strat_atr = float(val)
+                    if strat_atr is None:
+                        strat_atr = max(0.01, last_close * 0.02)
+
                     sym_signals.append({
                         "symbol": sym,
                         "strategy": strat,
                         "signal": signal,
                         "last_close": last_close,
-                        "last_atr": last_atr,
+                        "last_atr": strat_atr,
                         "df": sig_df
                     })
         except Exception as e:
@@ -420,9 +488,12 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
                     if held_inverse:
                         qty = int(held_inverse.get("quantity") or held_inverse.get("qty") or 0)
                         if qty > 0:
-                            logger.info(f"BUY signal for {symbol}: Closing inverse ETF position in {inverse_symbol}.")
-                            oms.place_trade(symbol=inverse_symbol, side="SELL", qty=qty)
-                            current_positions = [pos for pos in current_positions if pos.get("symbol") != inverse_symbol]
+                            if dry_run:
+                                logger.info(f"[DRY-RUN SIMULATION] BUY signal for {symbol}: Would close inverse ETF position in {inverse_symbol} ({qty} shares).")
+                            else:
+                                logger.info(f"BUY signal for {symbol}: Closing inverse ETF position in {inverse_symbol}.")
+                                oms.place_trade(symbol=inverse_symbol, side="SELL", qty=qty)
+                                current_positions = [pos for pos in current_positions if pos.get("symbol") != inverse_symbol]
 
             # Determine if we already hold a position in this symbol
             if use_options:
@@ -534,17 +605,36 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
                         log_decision("REJECTED_MARGIN_STRESS", False, "Worst-case stress loss exceeds limit", stress_pct)
                         continue
 
-                    logger.info(f"Enqueuing option order: BUY {contracts} contracts of {option_symbol} (Premium: {option_premium:.2f}, Stop: {opt_stop_price:.2f}, Delta: {delta:.4f})")
-                    oms.place_trade(
-                        symbol=option_symbol,
-                        side="BUY",
-                        qty=contracts,
-                        price=option_premium,
-                        stop_price=opt_stop_price,
-                    )
-                    available_cash -= contracts * option_premium * 100.0
-                    current_positions.append({"symbol": option_symbol, "quantity": contracts, "avg_price": option_premium, "stop_price": opt_stop_price})
-                    log_decision("BUY_ORDER_PLACED", True, None, stress_pct)
+                    opt_take_profit = round(option_premium * 2.0, 2)
+                    if dry_run:
+                        logger.info(
+                            f"[DRY-RUN SIMULATION] Would execute option order: BUY {contracts} contracts of {option_symbol} "
+                            f"(Premium: {option_premium:.2f}, Stop: {opt_stop_price:.2f}, Take-Profit: {opt_take_profit}, Delta: {delta:.4f})"
+                        )
+                        log_decision("DRY_RUN_PASSED", True, f"Simulated option order: {contracts} contracts", stress_pct)
+                    else:
+                        logger.info(
+                            f"Enqueuing option order: BUY {contracts} contracts of {option_symbol} "
+                            f"(Premium: {option_premium:.2f}, Stop: {opt_stop_price:.2f}, Take-Profit: {opt_take_profit}, Delta: {delta:.4f})"
+                        )
+                        oms.place_trade(
+                            symbol=option_symbol,
+                            side="BUY",
+                            qty=contracts,
+                            price=option_premium,
+                            stop_price=opt_stop_price,
+                            take_profit=opt_take_profit,
+                        )
+                        available_cash -= contracts * option_premium * 100.0
+                        from src.utils.helpers import normalize_position
+                        current_positions.append(normalize_position({
+                            "symbol": option_symbol,
+                            "quantity": contracts,
+                            "avg_price": option_premium,
+                            "stop_price": opt_stop_price,
+                            "sector": sector,
+                        }))
+                        log_decision("BUY_ORDER_PLACED", True, None, stress_pct)
                 else:
                     stop_price = strat.get_initial_stop_price(df, len(df) - 1, last_close)
                     sizing = sizer.calculate_size(sizing_equity, last_close, stop_price, last_atr, slippage_bps=5.0)
@@ -582,17 +672,39 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
                         log_decision("REJECTED_MARGIN_STRESS", False, "Worst-case stress loss exceeds limit", stress_pct)
                         continue
 
-                    logger.info(f"Enqueuing trade order: BUY {shares} shares of {trade_symbol} (Limit: {last_close:.2f}, Stop: {stop_price:.2f})")
-                    oms.place_trade(
-                        symbol=trade_symbol,
-                        side="BUY",
-                        qty=shares,
-                        price=last_close,
-                        stop_price=stop_price,
-                    )
-                    available_cash -= shares * last_close
-                    current_positions.append({"symbol": trade_symbol, "quantity": shares, "avg_price": last_close, "stop_price": stop_price})
-                    log_decision("BUY_ORDER_PLACED", True, None, stress_pct)
+                    # Take-profit target calculation (2:1 reward-to-risk ratio based on stop distance)
+                    risk_per_share = abs(last_close - stop_price)
+                    take_profit_target = round(last_close + (2.0 * risk_per_share), 2) if risk_per_share > 0 else None
+
+                    if dry_run:
+                        logger.info(
+                            f"[DRY-RUN SIMULATION] Would execute trade order: BUY {shares} shares of {trade_symbol} "
+                            f"(Limit: {last_close:.2f}, Stop: {stop_price:.2f}, Take-Profit: {take_profit_target})"
+                        )
+                        log_decision("DRY_RUN_PASSED", True, f"Simulated BUY order: {shares} shares at {last_close:.2f}", stress_pct)
+                    else:
+                        logger.info(
+                            f"Enqueuing trade order: BUY {shares} shares of {trade_symbol} "
+                            f"(Limit: {last_close:.2f}, Stop: {stop_price:.2f}, Take-Profit: {take_profit_target})"
+                        )
+                        oms.place_trade(
+                            symbol=trade_symbol,
+                            side="BUY",
+                            qty=shares,
+                            price=last_close,
+                            stop_price=stop_price,
+                            take_profit=take_profit_target,
+                        )
+                        available_cash -= shares * last_close
+                        from src.utils.helpers import normalize_position
+                        current_positions.append(normalize_position({
+                            "symbol": trade_symbol,
+                            "quantity": shares,
+                            "avg_price": last_close,
+                            "stop_price": stop_price,
+                            "sector": sector,
+                        }))
+                        log_decision("BUY_ORDER_PLACED", True, None, stress_pct)
 
             elif signal == -1:  # SELL
                 if not held_position:
@@ -606,16 +718,20 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
 
                 held_symbol = held_position.get("symbol")
                 exit_price = None if use_options else last_close
-                logger.info(f"Enqueuing trade order: SELL {qty} shares/contracts of {held_symbol}")
-                oms.place_trade(
-                    symbol=held_symbol,
-                    side="SELL",
-                    qty=qty,
-                    price=exit_price,
-                )
-                available_cash += qty * (exit_price if exit_price else held_position.get("avg_price", 0.0))
-                current_positions = [pos for pos in current_positions if pos.get("symbol") != held_symbol]
-                log_decision("SELL_ORDER_PLACED", True, None)
+                if dry_run:
+                    logger.info(f"[DRY-RUN SIMULATION] Would execute trade order: SELL {qty} shares/contracts of {held_symbol}")
+                    log_decision("DRY_RUN_PASSED", True, f"Simulated SELL order: {qty} shares of {held_symbol}")
+                else:
+                    logger.info(f"Enqueuing trade order: SELL {qty} shares/contracts of {held_symbol}")
+                    oms.place_trade(
+                        symbol=held_symbol,
+                        side="SELL",
+                        qty=qty,
+                        price=exit_price,
+                    )
+                    available_cash += qty * (exit_price if exit_price else held_position.get("avg_price", 0.0))
+                    current_positions = [pos for pos in current_positions if pos.get("symbol") != held_symbol]
+                    log_decision("SELL_ORDER_PLACED", True, None)
         except Exception as e:
             logger.error(f"Error executing strategy order generation for {symbol}: {e}", exc_info=True)
 
@@ -643,9 +759,13 @@ def run_trading_cycle(interval: str = "1d", use_options: bool = False, force_run
         logger.error(f"Failed to write engine status file: {ese}")
 
     # 6. Reconcile working orders
-    logger.info("Synchronizing active order states with Alpaca...")
-    oms.sync_orders()
-    msg = f"✅ H.A.T.S Systematic trading cycle ({interval}) completed successfully."
+    if not dry_run:
+        logger.info("Synchronizing active order states with Alpaca...")
+        oms.sync_orders()
+    else:
+        logger.info("[DRY-RUN SIMULATION] Skipping Alpaca order sync.")
+    status_suffix = " (DRY-RUN SIMULATION)" if dry_run else ""
+    msg = f"✅ H.A.T.S Systematic trading cycle ({interval}) completed successfully{status_suffix}."
     logger.info(msg)
     send_telegram_alert(msg)
 
@@ -667,6 +787,7 @@ if __name__ == "__main__":
     parser.add_argument("--interval", "-i", type=str, default="1d", help="Candle interval timeframe (e.g. 1d, 1h, 15m, 5m).")
     parser.add_argument("--options", "-o", action="store_true", help="Enable equity options trading mode instead of stocks.")
     parser.add_argument("--force", "-f", action="store_true", help="Force cycle execution during off-market hours.")
+    parser.add_argument("--dry-run", "--health", dest="dry_run", action="store_true", help="Run in dry-run health check mode without placing broker orders.")
     parser.add_argument("--continuous", "-c", action="store_true", help="Run continuously as an intraday trading daemon during market hours.")
     parser.add_argument("--report", "-r", action="store_true", help="Compile and transmit the weekly performance report manually.")
     parser.add_argument("--listener", "-l", action="store_true", help="Start the interactive Telegram Bot listener daemon.")
@@ -709,7 +830,7 @@ if __name__ == "__main__":
         logger.info(f"Starting continuous intraday trading loop (Interval: {args.interval}, Sleep: {sleep_sec}s)...")
         while True:
             try:
-                run_trading_cycle(interval=args.interval, use_options=args.options, force_run=args.force)
+                run_trading_cycle(interval=args.interval, use_options=args.options, force_run=args.force, dry_run=args.dry_run)
             except Exception as e:
                 logger.error(f"Error in continuous cycle iteration: {e}", exc_info=True)
                 send_telegram_alert(f"⚠️ **H.A.T.S Cycle Warning**: {e}")
@@ -717,7 +838,7 @@ if __name__ == "__main__":
             time.sleep(sleep_sec)
 
     try:
-        run_trading_cycle(interval=args.interval, use_options=args.options, force_run=args.force)
+        run_trading_cycle(interval=args.interval, use_options=args.options, force_run=args.force, dry_run=args.dry_run)
     except Exception as e:
         logger.critical(f"Unhandled systematic trading engine crash: {e}", exc_info=True)
         send_telegram_alert(f"⚠️ **H.A.T.S CRITICAL ERROR**: Trading engine crashed with error:\n`{e}`")

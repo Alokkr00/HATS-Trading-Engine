@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import datetime as dt
 from pathlib import Path
+from typing import Any
 from zoneinfo import ZoneInfo
 
 # ---------------------------------------------------------------------------
@@ -62,6 +63,29 @@ _US_MARKET_HOLIDAYS: frozenset[dt.date] = frozenset({
     dt.date(2026, 9, 7),   # Labor Day
     dt.date(2026, 11, 26), # Thanksgiving Day
     dt.date(2026, 12, 25), # Christmas Day
+
+    # ---- 2027 ----
+    dt.date(2027, 1, 1),   # New Year's Day
+    dt.date(2027, 1, 18),  # MLK Jr. Day
+    dt.date(2027, 2, 15),  # Presidents' Day
+    dt.date(2027, 3, 26),  # Good Friday
+    dt.date(2027, 5, 31),  # Memorial Day
+    dt.date(2027, 6, 18),  # Juneteenth (observed — Jun 19 is Sat)
+    dt.date(2027, 7, 5),   # Independence Day (observed — Jul 4 is Sun)
+    dt.date(2027, 9, 6),   # Labor Day
+    dt.date(2027, 11, 25), # Thanksgiving Day
+    dt.date(2027, 12, 24), # Christmas Day (observed — Dec 25 is Sat)
+
+    # ---- 2028 ----
+    dt.date(2028, 1, 17),  # MLK Jr. Day
+    dt.date(2028, 2, 21),  # Presidents' Day
+    dt.date(2028, 4, 14),  # Good Friday
+    dt.date(2028, 5, 29),  # Memorial Day
+    dt.date(2028, 6, 19),  # Juneteenth
+    dt.date(2028, 7, 4),   # Independence Day
+    dt.date(2028, 9, 4),   # Labor Day
+    dt.date(2028, 11, 23), # Thanksgiving Day
+    dt.date(2028, 12, 25), # Christmas Day
 })
 # fmt: on
 
@@ -234,3 +258,60 @@ def ensure_dir(path: str | Path) -> Path:
     p = Path(path).resolve()
     p.mkdir(parents=True, exist_ok=True)
     return p
+
+
+# ---------------------------------------------------------------------------
+# Position dictionary normalization
+# ---------------------------------------------------------------------------
+
+
+def normalize_position(pos: dict[str, Any] | Any) -> dict[str, Any]:
+    """Normalize a position dictionary or object to a standard canonical schema.
+
+    Guarantees that both 'qty' and 'quantity', and both 'cost_price' and 'avg_price'
+    are present and populated with standard numeric types. Also ensures 'symbol'
+    and 'sector' keys exist.
+
+    Args:
+        pos: Dict or object representing a held position.
+
+    Returns:
+        Canonical position dict with consistent keys.
+    """
+    if not isinstance(pos, dict):
+        result: dict[str, Any] = {}
+        for attr in ("weight", "percent", "underlying_price", "implied_vol", "sigma", "option_type", "strike"):
+            if hasattr(pos, attr):
+                result[attr] = getattr(pos, attr)
+        raw_qty = getattr(pos, "quantity", getattr(pos, "qty", 0))
+        raw_price = getattr(pos, "avg_price", getattr(pos, "cost_price", getattr(pos, "avg_entry_price", 0.0)))
+        symbol = getattr(pos, "symbol", "")
+        sector = getattr(pos, "sector", "Unknown")
+        stop_price = getattr(pos, "stop_price", None)
+        market_value = getattr(pos, "market_value", 0.0)
+    else:
+        result = dict(pos)
+        raw_qty = pos.get("quantity") if pos.get("quantity") is not None else pos.get("qty", 0)
+        raw_price = pos.get("cost_price") if pos.get("cost_price") is not None else pos.get("avg_price", pos.get("avg_entry_price", 0.0))
+        symbol = pos.get("symbol", "")
+        sector = pos.get("sector", "Unknown")
+        stop_price = pos.get("stop_price")
+        market_value = pos.get("market_value", 0.0)
+
+    qty = int(float(raw_qty or 0))
+    price = float(raw_price or 0.0)
+    stop = float(stop_price) if (stop_price is not None and not str(stop_price).lower() == "none") else None
+    val = float(market_value) if market_value else float(qty * price)
+
+    result.update({
+        "symbol": str(symbol).strip().upper(),
+        "qty": qty,
+        "quantity": qty,
+        "cost_price": price,
+        "avg_price": price,
+        "sector": str(sector).strip() if sector else "Unknown",
+        "stop_price": stop,
+        "market_value": val,
+    })
+    return result
+

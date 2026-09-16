@@ -23,9 +23,37 @@ class PositionSizer:
     subject to max position limits and sector concentration caps.
     """
 
-    def __init__(self) -> None:
-        """Initialize the PositionSizer."""
-        pass
+    def __init__(
+        self,
+        risk_settings: Dict[str, Any] | None = None,
+        max_portfolio_positions: int | None = None,
+        max_sector_exposure_pct: float | None = None,
+    ) -> None:
+        """Initialize the PositionSizer with risk configuration."""
+        if risk_settings is not None:
+            self.risk_settings = risk_settings
+        else:
+            try:
+                from src.config_loader import get_risk_settings
+                self.risk_settings = get_risk_settings()
+            except Exception:
+                self.risk_settings = {}
+
+        pos_cfg = self.risk_settings.get("position_sizing", {})
+        port_cfg = self.risk_settings.get("portfolio", {})
+
+        self.max_portfolio_positions = (
+            max_portfolio_positions
+            if max_portfolio_positions is not None
+            else int(pos_cfg.get("max_portfolio_positions", 10))
+        )
+        self.max_sector_exposure_pct = (
+            max_sector_exposure_pct
+            if max_sector_exposure_pct is not None
+            else float(port_cfg.get("max_sector_exposure_pct", 0.30))
+        )
+        self.default_risk_per_trade_pct = float(pos_cfg.get("default_risk_per_trade_pct", 0.01))
+
 
     def calculate_size(
         self,
@@ -155,12 +183,14 @@ class PositionSizer:
         new_sector: str,
         new_trade_weight: float | None = None,
         account_equity: float = 100000.0,
+        max_positions: int | None = None,
+        max_sector_pct: float | None = None,
     ) -> bool:
         """Check if adding a new trade violates portfolio risk limits.
 
         Limits:
-            - Max 6 concurrent positions.
-            - Max 25% of account in a single sector.
+            - Max concurrent positions (dynamic from config, default 10).
+            - Max sector concentration (dynamic from config, default 30%).
             - Max 15% TIMS Portfolio Margin Stress Drawdown.
 
         Args:
@@ -171,35 +201,28 @@ class PositionSizer:
             new_trade_weight: Optional weight of the new trade as a fraction of equity.
                 If not specified, it defaults to 0.10 (conservative maximum position value).
             account_equity: Net portfolio liquidation value.
+            max_positions: Optional override for maximum concurrent positions.
+            max_sector_pct: Optional override for maximum sector concentration.
 
         Returns:
             True if the trade is allowed under portfolio limits, False otherwise.
         """
-        # 1. Max 6 concurrent positions
-        if len(current_positions) >= 6:
+        # 1. Max concurrent positions constraint
+        limit_positions = max_positions if max_positions is not None else self.max_portfolio_positions
+        if len(current_positions) >= limit_positions:
             logger.warning(
-                "Trade rejected: Maximum concurrent positions (6) reached. Current count: %d",
+                "Trade rejected: Maximum concurrent positions (%d) reached. Current count: %d",
+                limit_positions,
                 len(current_positions),
             )
             return False
 
         # 2. Portfolio Margin Stress Test (TIMS-style Simulator)
         from src.risk.margin import PortfolioMarginSimulator
-        
-        formatted_positions = []
-        for pos in current_positions:
-            if isinstance(pos, dict):
-                formatted_positions.append(pos)
-            else:
-                formatted_positions.append({
-                    "symbol": getattr(pos, "symbol", "UNKNOWN"),
-                    "qty": getattr(pos, "quantity", getattr(pos, "qty", 0)),
-                    "avg_price": getattr(pos, "avg_price", getattr(pos, "cost_price", 0.0)),
-                    "stop_price": getattr(pos, "stop_price", 0.0),
-                    "underlying_price": getattr(pos, "underlying_price", 0.0),
-                    "implied_vol": getattr(pos, "implied_vol", getattr(pos, "sigma", 0.30)),
-                })
-                
+        from src.utils.helpers import normalize_position
+
+        formatted_positions = [normalize_position(pos) for pos in current_positions]
+
         simulator = PortfolioMarginSimulator()
         stress_res = simulator.stress_test(formatted_positions, account_equity)
         if not stress_res["passed"]:
@@ -212,54 +235,50 @@ class PositionSizer:
             return False
 
         # If new_sector is empty/invalid, log warning but allow or block based on strictness.
-        # Let's normalize it.
         if not new_sector or not isinstance(new_sector, str):
             logger.warning("Empty or invalid sector name '%s' provided. Falling back to 'Unknown'.", new_sector)
             new_sector = "Unknown"
 
         normalized_new_sector = new_sector.strip().lower()
 
-        # 2. Sector concentration check (Max 25% in a single sector)
+        # 3. Sector concentration check (dynamic, default 30% per risk defaults)
+        limit_sector_pct = max_sector_pct if max_sector_pct is not None else self.max_sector_exposure_pct
         existing_sector_weight = 0.0
-        for pos in current_positions:
-            # Try dictionary access first, then object attribute
-            sector = pos.get("sector") if isinstance(pos, dict) else getattr(pos, "sector", None)
-            if not sector or not isinstance(sector, str):
-                sector = "Unknown"
-
-            if sector.strip().lower() == normalized_new_sector:
-                weight = pos.get("weight") if isinstance(pos, dict) else getattr(pos, "weight", None)
+        for pos in formatted_positions:
+            sector = pos.get("sector", "Unknown")
+            if str(sector).strip().lower() == normalized_new_sector:
+                weight = pos.get("weight")
                 if weight is None:
-                    # Check if 'percent' exists and convert to weight
-                    percent = pos.get("percent") if isinstance(pos, dict) else getattr(pos, "percent", None)
+                    percent = pos.get("percent")
                     if percent is not None:
                         weight = percent / 100.0
                     else:
-                        # Fallback default weight if not provided (equal weighting assumption: 10% per position)
                         weight = 0.10
 
                 existing_sector_weight += weight
 
-        # Set default trade weight to 0.10 (max position value) if not provided
         trade_weight = new_trade_weight if new_trade_weight is not None else 0.10
         total_sector_weight = existing_sector_weight + trade_weight
 
-        if total_sector_weight > 0.25:
+        if total_sector_weight > limit_sector_pct:
             logger.warning(
                 "Trade rejected: Adding sector '%s' (weight: %.2f%%) to existing weight (%.2f%%) "
-                "would exceed the maximum sector concentration limit of 25.0%%.",
+                "would exceed the maximum sector concentration limit of %.1f%%.",
                 new_sector,
                 trade_weight * 100.0,
                 existing_sector_weight * 100.0,
+                limit_sector_pct * 100.0,
             )
             return False
 
         logger.info(
-            "Portfolio limits check passed for sector '%s'. Combined weight: %.2f%% (limit: 25.0%%).",
+            "Portfolio limits check passed for sector '%s'. Combined weight: %.2f%% (limit: %.1f%%).",
             new_sector,
             total_sector_weight * 100.0,
+            limit_sector_pct * 100.0,
         )
         return True
+
 
     def check_correlation(
         self,

@@ -257,8 +257,10 @@ def _start_trading_scheduler() -> None:
     logger.info("Trading scheduler thread launched.")
 
 
-# Auto-start scheduler when module loads
-_start_trading_scheduler()
+# Auto-start scheduler when module loads (disabled under pytest or via env var)
+if "pytest" not in sys.modules and os.getenv("HATS_DISABLE_SCHEDULER") != "1":
+    _start_trading_scheduler()
+
 
 
 @app.get("/api/auth/token", dependencies=[Depends(authenticate_user)])

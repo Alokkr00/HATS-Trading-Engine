@@ -163,9 +163,15 @@ class AlpacaClient:
         qty: int,
         price: float | None = None,
         stop_price: float | None = None,
+        take_profit: float | None = None,
         client_order_id: str | None = None,
     ) -> dict[str, Any]:
-        """Submit a market, limit, or stop-limit order to Alpaca.
+        """Submit a market, limit, stop-limit, or bracket order to Alpaca.
+
+        Supports:
+            - Full Bracket (entry + stop loss + take profit) via OrderClass.BRACKET
+            - One-Triggers-Other (entry + stop loss or take profit) via OrderClass.OTO
+            - Standalone Limit / Market / Stop orders
 
         Returns a normalised dict: {"order_id": str, "status": str}
         """
@@ -175,17 +181,44 @@ class AlpacaClient:
             MarketOrderRequest,
             StopOrderRequest,
             StopLossRequest,
+            TakeProfitRequest,
         )
 
         side_enum = OrderSide.BUY if side.upper() == "BUY" else OrderSide.SELL
         tif = TimeInForce.DAY  # Day orders are safest for equities
 
         try:
-            # If we are BUYING with a stop-loss, we use OTO order class
-            if side_enum == OrderSide.BUY and stop_price is not None:
+            # 1. Bracket order (both stop-loss and take-profit specified for BUY)
+            if side_enum == OrderSide.BUY and stop_price is not None and take_profit is not None:
+                stop_loss_req = StopLossRequest(stop_price=round(stop_price, 2))
+                take_profit_req = TakeProfitRequest(limit_price=round(take_profit, 2))
+                if price is not None:
+                    req = LimitOrderRequest(
+                        symbol=symbol,
+                        qty=qty,
+                        side=side_enum,
+                        time_in_force=tif,
+                        limit_price=round(price, 2),
+                        client_order_id=client_order_id,
+                        order_class=OrderClass.BRACKET,
+                        stop_loss=stop_loss_req,
+                        take_profit=take_profit_req,
+                    )
+                else:
+                    req = MarketOrderRequest(
+                        symbol=symbol,
+                        qty=qty,
+                        side=side_enum,
+                        time_in_force=tif,
+                        client_order_id=client_order_id,
+                        order_class=OrderClass.BRACKET,
+                        stop_loss=stop_loss_req,
+                        take_profit=take_profit_req,
+                    )
+            # 2. OTO order (stop-loss only for BUY)
+            elif side_enum == OrderSide.BUY and stop_price is not None:
                 stop_loss_req = StopLossRequest(stop_price=round(stop_price, 2))
                 if price is not None:
-                    # Limit entry with stop-loss protection
                     req = LimitOrderRequest(
                         symbol=symbol,
                         qty=qty,
@@ -197,7 +230,6 @@ class AlpacaClient:
                         stop_loss=stop_loss_req,
                     )
                 else:
-                    # Market entry with stop-loss protection
                     req = MarketOrderRequest(
                         symbol=symbol,
                         qty=qty,
@@ -207,6 +239,31 @@ class AlpacaClient:
                         order_class=OrderClass.OTO,
                         stop_loss=stop_loss_req,
                     )
+            # 3. OTO order (take-profit only for BUY)
+            elif side_enum == OrderSide.BUY and take_profit is not None:
+                take_profit_req = TakeProfitRequest(limit_price=round(take_profit, 2))
+                if price is not None:
+                    req = LimitOrderRequest(
+                        symbol=symbol,
+                        qty=qty,
+                        side=side_enum,
+                        time_in_force=tif,
+                        limit_price=round(price, 2),
+                        client_order_id=client_order_id,
+                        order_class=OrderClass.OTO,
+                        take_profit=take_profit_req,
+                    )
+                else:
+                    req = MarketOrderRequest(
+                        symbol=symbol,
+                        qty=qty,
+                        side=side_enum,
+                        time_in_force=tif,
+                        client_order_id=client_order_id,
+                        order_class=OrderClass.OTO,
+                        take_profit=take_profit_req,
+                    )
+
             elif stop_price is not None:
                 # Stop (market) order — e.g. standalone stop-loss exit
                 req = StopOrderRequest(
@@ -289,16 +346,21 @@ class AlpacaClient:
 
             positions = []
             for pos in raw_positions:
+                pos_qty = int(float(pos.qty))
+                cost = float(pos.avg_entry_price or 0)
                 positions.append(
                     {
                         "symbol": pos.symbol,
-                        "qty": int(float(pos.qty)),
-                        "cost_price": float(pos.avg_entry_price or 0),
+                        "qty": pos_qty,
+                        "quantity": pos_qty,
+                        "cost_price": cost,
+                        "avg_price": cost,
                         "market_value": float(pos.market_value or 0),
                         "unrealized_pl": float(pos.unrealized_pl or 0),
                         "current_price": float(pos.current_price or 0),
                     }
                 )
+
 
             cash_balance = float(account.cash)
             net_liquidity = float(account.equity)

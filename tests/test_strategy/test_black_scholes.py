@@ -64,3 +64,28 @@ def test_parse_option_symbol():
     assert strike == 392.5
     # T should be roughly 181 days / 365.0 = ~0.495 years
     assert pytest.approx(T, abs=1e-2) == 0.495
+
+    # Test ticker containing 'C': CAT (Caterpillar)
+    und, o_type, strk, _ = parse_option_symbol("CAT260717C00350000", current_time=now_date)
+    assert und == "CAT"
+    assert o_type == "C"
+    assert strk == 350.0
+
+    # Test single-letter ticker 'C' (Citigroup)
+    und, o_type, strk, _ = parse_option_symbol("C260717P00060000", current_time=now_date)
+    assert und == "C"
+    assert o_type == "P"
+    assert strk == 60.0
+
+    # Test ticker containing 'P': PFE (Pfizer) Put
+    und, o_type, strk, _ = parse_option_symbol("PFE260717P00028000", current_time=now_date)
+    assert und == "PFE"
+    assert o_type == "P"
+    assert strk == 28.0
+
+    # Test ticker COP (ConocoPhillips) Put
+    und, o_type, strk, _ = parse_option_symbol("COP260717P00115000", current_time=now_date)
+    assert und == "COP"
+    assert o_type == "P"
+    assert strk == 115.0
+

@@ -77,11 +77,18 @@ inverse_map:
 
 # List of active strategies to execute
 active_strategies:
-  # Swing/Momentum (longer-timeframe, sparser signals)
+  # Macro / Canonical Quantitative Models
+  - DualMomentum
+  - VolatilityScaledTrend
+  - ConnorsRSI
   - SectorMomentum
   - BreadthThrustReversion
   - OptionsIVRunup
-  # Technical indicators (more frequent signals)
+  # Intraday Real-Time Models
+  - OpeningRangeBreakout
+  - IntradayVWAP
+  - PivotPointReversion
+  # Technical Indicators & Volatility Expansions
   - MACrossover
   - RSIMeanReversion
   - MACDHistogram
@@ -90,4 +97,5 @@ active_strategies:
   - ZScoreReversion
   - BollingerSqueeze
   - IchimokuCloud
+
 

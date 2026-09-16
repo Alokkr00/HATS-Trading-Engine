@@ -99,6 +99,7 @@ class DataStore:
         start: str | datetime | None = None,
         end: str | datetime | None = None,
         tz: str | None = None,
+        allow_missing: bool = False,
     ) -> pd.DataFrame:
         """Load OHLCV data from Parquet, optionally slicing by date.
 
@@ -107,17 +108,21 @@ class DataStore:
             start: Optional start date for slicing (inclusive).
             end: Optional end date for slicing (inclusive).
             tz: Optional timezone to convert/localize the index to (e.g. ``"US/Eastern"``).
+            allow_missing: If True, returns empty DataFrame instead of raising StoreError.
 
         Returns:
             DataFrame with DatetimeIndex and OHLCV columns.
 
         Raises:
-            StoreError: If the file does not exist or cannot be read.
+            StoreError: If the file does not exist (and allow_missing=False) or cannot be read.
         """
         symbol = symbol.upper().strip()
         path = self._symbol_path(symbol)
 
         if not path.exists():
+            if allow_missing:
+                logger.debug("[%s] No data on disk, returning empty DataFrame", symbol)
+                return pd.DataFrame()
             raise StoreError(f"No data on disk for {symbol} (looked in {path})")
 
         df = self._read_parquet(path)
@@ -144,6 +149,21 @@ class DataStore:
         df.attrs["symbol"] = symbol
         logger.info("[%s] Loaded %d rows from %s", symbol, len(df), path)
         return df
+
+    def load_safe(
+        self,
+        symbol: str,
+        start: str | datetime | None = None,
+        end: str | datetime | None = None,
+        tz: str | None = None,
+    ) -> pd.DataFrame:
+        """Load OHLCV data, returning empty DataFrame on any missing file or read error."""
+        try:
+            return self.load(symbol, start=start, end=end, tz=tz, allow_missing=True)
+        except Exception as e:
+            logger.warning("[%s] Safe load failed: %s", symbol, e)
+            return pd.DataFrame()
+
 
     def has_symbol(self, symbol: str) -> bool:
         """Check whether a Parquet file exists for the symbol.

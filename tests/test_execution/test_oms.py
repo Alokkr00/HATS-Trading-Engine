@@ -102,6 +102,46 @@ def test_place_trade_success(mock_client, temp_log_dir) -> None:
     assert order_data["price"] == 150.0
 
 
+def test_place_trade_bracket_success(mock_client, temp_log_dir) -> None:
+    """Test successful order submission with both stop_price and take_profit."""
+    mock_client.place_order.return_value = {"order_id": "broker_bracket_789"}
+
+    oms = OrderManager(client=mock_client, account_id="acc123", log_dir=str(temp_log_dir))
+
+    order_id = oms.place_trade(
+        symbol="MSFT",
+        side="BUY",
+        qty=15,
+        price=400.0,
+        stop_price=385.0,
+        take_profit=430.0,
+    )
+
+    assert order_id == "broker_bracket_789"
+    mock_client.place_order.assert_called_once_with(
+        account_id="acc123",
+        symbol="MSFT",
+        side="BUY",
+        qty=15,
+        price=400.0,
+        stop_price=385.0,
+        take_profit=430.0,
+        client_order_id=mock_client.place_order.call_args[1]["client_order_id"],
+    )
+
+    # Verify state recorded stop_price and take_profit
+    state_file = temp_log_dir / "oms_state.json"
+    with open(state_file, "r", encoding="utf-8") as f:
+        state = json.load(f)
+
+    client_ord_id = list(state["orders"].keys())[0]
+    order_data = state["orders"][client_ord_id]
+    assert order_data["stop_price"] == 385.0
+    assert order_data["take_profit"] == 430.0
+    assert order_data["status"] == "SUBMITTED"
+
+
+
 def test_place_trade_api_failure(mock_client, temp_log_dir) -> None:
     """Verify that AlpacaAPIError marks trade state as FAILED and doesn't propagate error."""
     mock_client.place_order.side_effect = AlpacaAPIError("Margin violation: insufficient funds")

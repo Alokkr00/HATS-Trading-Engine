@@ -55,39 +55,67 @@ def calculate_option_price_and_delta(
     return max(0.0, price), delta
 
 
+import re
+
+_OCC_OPTION_REGEX = re.compile(
+    r"^([A-Za-z]{1,6})\s*(\d{2})(\d{2})(\d{2})([CPcp])(\d{8})$"
+)
+
+
 def parse_option_symbol(symbol: str, current_time: dt.datetime | None = None) -> tuple[str, str, float, float]:
     """Parse standard OCC option symbol to extract parameters.
     
     Example: TSLA260717C00392500 -> ('TSLA', 'C', 392.5, T_in_years)
+    Handles tickers containing 'C' or 'P' (e.g. CAT, COP, C, CRM, PFE, PYPL)
+    without misidentifying the underlying vs option type.
     """
     now = current_time or dt.datetime.now()
-    for char_type in ["C", "P"]:
-        if char_type in symbol:
-            c_idx = symbol.find(char_type)
-            # Ticker underlying
-            underlying = symbol[:c_idx-6] if c_idx >= 6 else symbol[:c_idx]
-            # Expiry date part (YYMMDD)
-            exp_str = symbol[c_idx-6:c_idx] if c_idx >= 6 else ""
-            
-            # Time to expiry (T)
+    clean_sym = symbol.strip().upper()
+
+    match = _OCC_OPTION_REGEX.match(clean_sym)
+    if match:
+        underlying = match.group(1).upper()
+        yy = int(match.group(2)) + 2000
+        mm = int(match.group(3))
+        dd = int(match.group(4))
+        char_type = match.group(5).upper()
+        strike_raw = match.group(6)
+        strike = float(strike_raw) / 1000.0
+
+        try:
+            exp_date = dt.datetime(yy, mm, dd)
+            days_to_expiry = (exp_date - now).days
+            T = max(0.0, days_to_expiry / 365.0)
+        except Exception:
             T = 0.0
-            if exp_str.isdigit() and len(exp_str) == 6:
-                try:
-                    yy = int(exp_str[:2]) + 2000
-                    mm = int(exp_str[2:4])
-                    dd = int(exp_str[4:])
-                    exp_date = dt.datetime(yy, mm, dd)
-                    days_to_expiry = (exp_date - now).days
-                    T = max(0.0, days_to_expiry / 365.0)
-                except Exception:
-                    pass
-            
-            # Strike price
-            try:
-                strike = float(symbol[c_idx+1:]) / 1000.0
-            except Exception:
-                strike = 0.0
-                
-            return underlying, char_type, strike, T
-            
-    return symbol, "C", 0.0, 0.0
+
+        return underlying, char_type, strike, T
+
+    # Fallback for non-padded or loose option symbols:
+    # Look for 6 date digits followed by C/P and strike digits at the end
+    loose_match = re.search(r"(\d{6})([CPcp])(\d+)$", clean_sym)
+    if loose_match:
+        prefix_end = loose_match.start()
+        underlying = clean_sym[:prefix_end].strip().upper()
+        date_str = loose_match.group(1)
+        char_type = loose_match.group(2).upper()
+        strike_str = loose_match.group(3)
+
+        try:
+            yy = int(date_str[:2]) + 2000
+            mm = int(date_str[2:4])
+            dd = int(date_str[4:])
+            exp_date = dt.datetime(yy, mm, dd)
+            T = max(0.0, (exp_date - now).days / 365.0)
+        except Exception:
+            T = 0.0
+
+        try:
+            strike = float(strike_str) / 1000.0 if len(strike_str) >= 6 else float(strike_str)
+        except Exception:
+            strike = 0.0
+
+        return underlying, char_type, strike, T
+
+    return clean_sym, "C", 0.0, 0.0
+

@@ -47,3 +47,34 @@ def test_classify_exception_network_timeout(mock_trading_client):
     raw_exc = TimeoutError("Connection timed out")
     classified = client._classify_exception(raw_exc, "test_context")
     assert isinstance(classified, AlpacaConnectionError)
+
+
+@patch.dict(os.environ, {'APCA_API_KEY_ID': 'test_key', 'APCA_API_SECRET_KEY': 'test_secret'})
+@patch('alpaca.trading.client.TradingClient')
+def test_place_order_bracket(mock_trading_client):
+    """Test that specifying both stop_price and take_profit submits an OrderClass.BRACKET order."""
+    from unittest.mock import MagicMock
+    from alpaca.trading.enums import OrderClass
+
+    client = AlpacaClient()
+    mock_order = MagicMock()
+    mock_order.id = "mock-bracket-123"
+    mock_order.status = "accepted"
+    client._client.submit_order.return_value = mock_order
+
+    res = client.place_order(
+        account_id="acc",
+        symbol="SPY",
+        side="BUY",
+        qty=10,
+        price=500.0,
+        stop_price=490.0,
+        take_profit=520.0,
+    )
+    assert res["order_id"] == "mock-bracket-123"
+    client._client.submit_order.assert_called_once()
+    called_req = client._client.submit_order.call_args[1]["order_data"]
+    assert called_req.order_class == OrderClass.BRACKET
+    assert called_req.stop_loss.stop_price == 490.0
+    assert called_req.take_profit.limit_price == 520.0
+

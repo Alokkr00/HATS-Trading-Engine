@@ -47,29 +47,43 @@ class RAGIndexer:
         self.persist_dir = persist_dir or copilot_config.chroma_db_dir
         self.persist_dir.mkdir(parents=True, exist_ok=True)
         self.embedding_fn = FastLocalEmbeddingFunction()
-        self.client = chromadb.PersistentClient(
-            path=str(self.persist_dir),
-            settings=Settings(anonymized_telemetry=False),
-        )
-        try:
-            self.collection = self.client.get_or_create_collection(
-                name="hats_research_kb",
-                embedding_function=self.embedding_fn,
-                metadata={"description": "H.A.T.S Quantitative Strategy Docs & Audit Records"}
+        self._client = None
+        self._collection = None
+
+    @property
+    def client(self):
+        """Lazy-initialize ChromaDB client."""
+        if self._client is None:
+            self._client = chromadb.PersistentClient(
+                path=str(self.persist_dir),
+                settings=Settings(anonymized_telemetry=False),
             )
-        except Exception as e:
-            if "embedding function" in str(e).lower() or "conflict" in str(e).lower():
-                try:
-                    self.client.delete_collection(name="hats_research_kb")
-                except Exception:
-                    pass
-                self.collection = self.client.get_or_create_collection(
+        return self._client
+
+    @property
+    def collection(self):
+        """Lazy-initialize ChromaDB collection."""
+        if self._collection is None:
+            try:
+                self._collection = self.client.get_or_create_collection(
                     name="hats_research_kb",
                     embedding_function=self.embedding_fn,
                     metadata={"description": "H.A.T.S Quantitative Strategy Docs & Audit Records"}
                 )
-            else:
-                raise
+            except Exception as e:
+                if "embedding function" in str(e).lower() or "conflict" in str(e).lower():
+                    try:
+                        self.client.delete_collection(name="hats_research_kb")
+                    except Exception:
+                        pass
+                    self._collection = self.client.get_or_create_collection(
+                        name="hats_research_kb",
+                        embedding_function=self.embedding_fn,
+                        metadata={"description": "H.A.T.S Quantitative Strategy Docs & Audit Records"}
+                    )
+                else:
+                    raise
+        return self._collection
 
     def chunk_text(self, text: str, chunk_size: int = 500, overlap: int = 50) -> List[str]:
         """Split text into manageable chunks by paragraph or word boundary."""
@@ -124,4 +138,14 @@ class RAGIndexer:
         return total_chunks
 
 
-rag_indexer = RAGIndexer()
+class _LazyRAGIndexer:
+    _instance: RAGIndexer | None = None
+
+    def __getattr__(self, name: str) -> Any:
+        if _LazyRAGIndexer._instance is None:
+            _LazyRAGIndexer._instance = RAGIndexer()
+        return getattr(_LazyRAGIndexer._instance, name)
+
+
+rag_indexer = _LazyRAGIndexer()
+
