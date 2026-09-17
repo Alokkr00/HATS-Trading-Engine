@@ -244,6 +244,9 @@ def _trading_scheduler_loop() -> None:
 
 def _start_trading_scheduler() -> None:
     """Start the background trading scheduler thread (idempotent)."""
+    if "pytest" in sys.modules or os.getenv("HATS_DISABLE_SCHEDULER") == "1":
+        logger.info("Trading scheduler disabled under test / CI environment.")
+        return
     global _scheduler_thread
     if _scheduler_thread is not None and _scheduler_thread.is_alive():
         return
@@ -258,8 +261,7 @@ def _start_trading_scheduler() -> None:
 
 
 # Auto-start scheduler when module loads (disabled under pytest or via env var)
-if "pytest" not in sys.modules and os.getenv("HATS_DISABLE_SCHEDULER") != "1":
-    _start_trading_scheduler()
+_start_trading_scheduler()
 
 
 

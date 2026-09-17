@@ -37,5 +37,6 @@ jobs:
         DASHBOARD_PASSWORD: hats_secure_pass
         TELEGRAM_BOT_TOKEN: mock_token_for_ci
         TELEGRAM_CHAT_ID: mock_chat_id_for_ci
+        HATS_DISABLE_SCHEDULER: "1"
       run: |
         python -m pytest -v

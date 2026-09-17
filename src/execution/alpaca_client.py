@@ -55,12 +55,21 @@ class AlpacaClient:
     def _classify_exception(exc: Exception, context: str) -> AlpacaError:
         """Classify raw Alpaca SDK / network exceptions into precise OMS domain exceptions."""
         msg = str(exc).lower()
-        if "unauthorized" in msg or "forbidden" in msg or "invalid key" in msg or "401" in msg or "403" in msg:
-            logger.critical(f"Alpaca authentication failed during {context}: {exc}")
-            return AlpacaAuthError(
-                f"Alpaca API Authentication Failed: Invalid, expired, or revoked API Key/Secret. "
-                f"Please verify APCA_API_KEY_ID and APCA_API_SECRET_KEY at https://app.alpaca.markets (Raw error: {exc})"
-            )
+        # Order / position rejection codes (like 40310000) are business API errors, NOT auth failures
+        is_order_rejection = (
+            "40310000" in msg
+            or "cannot open a short sell" in msg
+            or "insufficient qty" in msg
+            or "insufficient buying power" in msg
+            or "order is not eligible" in msg
+        )
+        if not is_order_rejection:
+            if "unauthorized" in msg or "invalid key" in msg or "401" in msg or ("forbidden" in msg and "order" not in msg):
+                logger.critical(f"Alpaca authentication failed during {context}: {exc}")
+                return AlpacaAuthError(
+                    f"Alpaca API Authentication Failed: Invalid, expired, or revoked API Key/Secret. "
+                    f"Please verify APCA_API_KEY_ID and APCA_API_SECRET_KEY at https://app.alpaca.markets (Raw error: {exc})"
+                )
         if "rate limit" in msg or "429" in msg or "too many requests" in msg:
             logger.warning(f"Alpaca rate limited during {context}: {exc}")
             return AlpacaConnectionError(f"Alpaca rate limit encountered: {exc}")
