@@ -161,7 +161,7 @@ class OrderManager:
     def _save_state_to_json(self) -> None:
         """Save the current state to the state file using an atomic write."""
         self.log_dir.mkdir(parents=True, exist_ok=True)
-        tmp_file = self.state_file.with_suffix(".json.tmp")
+        tmp_file = self.state_file.parent / f"{self.state_file.name}.{os.getpid()}_{uuid.uuid4().hex[:8]}.tmp"
         try:
             with open(tmp_file, "w", encoding="utf-8") as f:
                 json.dump(self.state, f, indent=4)
