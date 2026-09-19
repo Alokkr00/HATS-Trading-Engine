@@ -306,6 +306,101 @@ def get_js():
     return FileResponse(js_path)
 
 
+def _enrich_positions_pnl(positions: dict[str, Any], store: DataStore | None = None) -> None:
+    """Enrich position dictionaries with real-time calculated prices, market values, and unrealized PnL.
+
+    Pricing priority:
+      1. Fresh on-disk OHLCV data from DataStore (if parquet exists).
+      2. Live broker-reported price / market value / unrealized PnL (e.g. from Alpaca sync).
+      3. Position's entry cost price (fallback).
+
+    Never raises StoreError or logs noisy warnings when raw historical parquet files
+    are not yet present on ephemeral cloud instances (e.g. Render).
+    """
+    if not positions:
+        return
+
+    if store is None:
+        try:
+            store = DataStore(raw_dir=str(PROJECT_ROOT / "data" / "raw"))
+        except Exception:
+            store = None
+
+    for symbol, pos in positions.items():
+        try:
+            qty = int(pos.get("quantity") or pos.get("qty") or 0)
+            cost_price = float(pos.get("cost_price") or pos.get("cost_basis") or pos.get("avg_price") or 0.0)
+
+            # 1. Attempt to load latest close from store if parquet file exists
+            current_price = 0.0
+            has_disk_data = False
+            if store is not None:
+                try:
+                    df = store.load(symbol, allow_missing=True)
+                    if df is not None and not df.empty and "close" in df.columns:
+                        current_price = float(df["close"].iloc[-1])
+                        has_disk_data = True
+                except TypeError:
+                    # In case of mock DataStore in tests that lacks allow_missing parameter
+                    try:
+                        df = store.load(symbol)
+                        if df is not None and not df.empty and "close" in df.columns:
+                            current_price = float(df["close"].iloc[-1])
+                            has_disk_data = True
+                    except Exception:
+                        pass
+                except Exception:
+                    pass
+
+            # 2. If no on-disk close, use live broker-reported price if available
+            if not has_disk_data:
+                broker_price = pos.get("current_price") or pos.get("price")
+                if broker_price is not None and float(broker_price) > 0.0:
+                    current_price = float(broker_price)
+
+            # 3. Fall back to cost price if still 0
+            if current_price <= 0.0:
+                current_price = cost_price
+
+            # 4. Market value
+            broker_mkt_val = pos.get("market_value")
+            if not has_disk_data and broker_mkt_val is not None and float(broker_mkt_val) != 0.0:
+                market_value = float(broker_mkt_val)
+            else:
+                market_value = current_price * qty
+
+            # 5. Unrealized PnL
+            broker_unrealized = pos.get("unrealized_pnl") if pos.get("unrealized_pnl") is not None else pos.get("unrealized_pl")
+            if not has_disk_data and broker_unrealized is not None:
+                unrealized_pnl = float(broker_unrealized)
+            else:
+                # Works for both long (qty > 0) and short (qty < 0)
+                unrealized_pnl = (current_price - cost_price) * qty
+
+            # 6. Unrealized PnL percentage
+            if cost_price > 0 and qty != 0:
+                direction = 1 if qty >= 0 else -1
+                unrealized_pnl_pct = ((current_price - cost_price) / cost_price * 100.0) * direction
+            else:
+                unrealized_pnl_pct = 0.0
+
+            pos["current_price"] = current_price
+            pos["market_value"] = market_value
+            pos["unrealized_pnl"] = unrealized_pnl
+            pos["unrealized_pl"] = unrealized_pnl
+            pos["unrealized_pnl_pct"] = unrealized_pnl_pct
+
+        except Exception as e:
+            logger.debug(f"Position PnL calculation fallback for {symbol}: {e}")
+            cost = float(pos.get("cost_price") or pos.get("cost_basis") or pos.get("avg_price") or 0.0)
+            qty = int(pos.get("quantity") or pos.get("qty") or 0)
+            pos.setdefault("current_price", cost)
+            pos.setdefault("market_value", cost * qty)
+            pos.setdefault("unrealized_pnl", 0.0)
+            pos.setdefault("unrealized_pl", 0.0)
+            pos.setdefault("unrealized_pnl_pct", 0.0)
+
+
 @app.get("/api/state", dependencies=[Depends(authenticate_user)])
 def get_state() -> dict[str, Any]:
     """Retrieve current Order Management System state enriched with live position PnL calculations."""
@@ -347,34 +442,7 @@ def get_state() -> dict[str, Any]:
                     pass
             positions = portfolio.get("positions", {})
             if positions:
-                store = DataStore(raw_dir=str(PROJECT_ROOT / "data" / "raw"))
-                for symbol, pos in positions.items():
-                    try:
-                        df = store.load(symbol)
-                        if df is not None and not df.empty:
-                            current_price = float(df["close"].iloc[-1])
-                            qty = int(pos.get("quantity") or pos.get("qty") or 0)
-                            cost_price = float(pos.get("cost_price") or pos.get("cost_basis") or 0.0)
-                            market_value = current_price * qty
-                            cost_basis = cost_price * qty
-                            unrealized_pnl = market_value - cost_basis
-                            unrealized_pnl_pct = ((current_price - cost_price) / cost_price * 100.0) if cost_price > 0 else 0.0
-                            
-                            pos["current_price"] = current_price
-                            pos["market_value"] = market_value
-                            pos["unrealized_pnl"] = unrealized_pnl
-                            pos["unrealized_pnl_pct"] = unrealized_pnl_pct
-                        else:
-                            pos["current_price"] = pos.get("cost_price", 0.0)
-                            pos["market_value"] = pos.get("cost_price", 0.0) * pos.get("quantity", 0)
-                            pos["unrealized_pnl"] = 0.0
-                            pos["unrealized_pnl_pct"] = 0.0
-                    except Exception as e:
-                        logger.warning(f"Failed to calculate position PnL for {symbol}: {e}")
-                        pos["current_price"] = pos.get("cost_price", 0.0)
-                        pos["market_value"] = pos.get("cost_price", 0.0) * pos.get("quantity", 0)
-                        pos["unrealized_pnl"] = 0.0
-                        pos["unrealized_pnl_pct"] = 0.0
+                _enrich_positions_pnl(positions)
             return state
         except Exception as e:
             logger.error(f"Failed to read state from JSON file: {e}")
@@ -384,36 +452,20 @@ def get_state() -> dict[str, Any]:
         positions = db.get_positions()
         orders = db.get_orders()
 
+        # If cash balance is uninitialized/zero in DB, attempt to pull live figures from Alpaca
+        from src.execution.alpaca_client import AlpacaClient
+        if AlpacaClient.is_configured() and float(net_liq) <= 0.0:
+            try:
+                client = AlpacaClient()
+                acc = client.get_account()
+                net_liq = float(acc.get("equity", net_liq))
+                cash_bal = float(acc.get("cash", cash_bal))
+            except Exception:
+                pass
+
         # Enrich positions with real-time calculated prices and unrealized PnL
         if positions:
-            store = DataStore(raw_dir=str(PROJECT_ROOT / "data" / "raw"))
-            for symbol, pos in positions.items():
-                try:
-                    df = store.load(symbol)
-                    if df is not None and not df.empty:
-                        current_price = float(df["close"].iloc[-1])
-                        qty = int(pos.get("quantity") or pos.get("qty") or 0)
-                        cost_price = float(pos.get("cost_price") or pos.get("cost_basis") or 0.0)
-                        market_value = current_price * qty
-                        cost_basis = cost_price * qty
-                        unrealized_pnl = market_value - cost_basis
-                        unrealized_pnl_pct = ((current_price - cost_price) / cost_price * 100.0) if cost_price > 0 else 0.0
-                        
-                        pos["current_price"] = current_price
-                        pos["market_value"] = market_value
-                        pos["unrealized_pnl"] = unrealized_pnl
-                        pos["unrealized_pnl_pct"] = unrealized_pnl_pct
-                    else:
-                        pos["current_price"] = pos.get("cost_price", 0.0)
-                        pos["market_value"] = pos.get("cost_price", 0.0) * pos.get("quantity", 0)
-                        pos["unrealized_pnl"] = 0.0
-                        pos["unrealized_pnl_pct"] = 0.0
-                except Exception as e:
-                    logger.warning(f"Failed to calculate position PnL for {symbol}: {e}")
-                    pos["current_price"] = pos.get("cost_price", 0.0)
-                    pos["market_value"] = pos.get("cost_price", 0.0) * pos.get("quantity", 0)
-                    pos["unrealized_pnl"] = 0.0
-                    pos["unrealized_pnl_pct"] = 0.0
+            _enrich_positions_pnl(positions)
 
         # Load engine status
         engine_status = {}
@@ -595,7 +647,7 @@ def get_live_price(symbol: str) -> float:
 def ensure_symbol_data(store: DataStore, symbol: str) -> pd.DataFrame:
     """Load cached market data or generate fast benchmark data for cloud dashboard with zero network latency."""
     try:
-        df = store.load(symbol, tz="America/New_York")
+        df = store.load(symbol, tz="America/New_York", allow_missing=True)
         if df is not None and not df.empty and len(df) > 20:
             return df
     except Exception:
@@ -936,8 +988,11 @@ def post_liquidate() -> dict[str, str]:
             
             # Retrieve latest close price
             store = DataStore(raw_dir=str(PROJECT_ROOT / "data" / "raw"))
-            df = store.load(symbol)
-            close_price = float(df["close"].iloc[-1]) if df is not None and not df.empty else cost
+            try:
+                df = store.load(symbol, allow_missing=True)
+            except Exception:
+                df = None
+            close_price = float(df["close"].iloc[-1]) if df is not None and not df.empty and "close" in df.columns else float(pos.get("current_price") or cost)
             
             transaction = {
                 "client_order_id": f"liquidate_{symbol}_{uuid.uuid4().hex[:6]}",

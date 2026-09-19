@@ -479,3 +479,96 @@ def test_dashboard_admin_write_endpoints_pass(client):
             assert res.json()["active"] is True
             mock_f.assert_called_once()
 
+
+def test_enrich_positions_pnl_with_broker_price_fallback():
+    """Verify _enrich_positions_pnl gracefully uses broker prices when on-disk parquets are absent."""
+    from src.dashboard.app import _enrich_positions_pnl
+    from unittest.mock import MagicMock
+
+    mock_store = MagicMock()
+    # Simulate missing file on disk (returns empty df or raises)
+    import pandas as pd
+    mock_store.load.return_value = pd.DataFrame()
+
+    positions = {
+        "XLE": {
+            "symbol": "XLE",
+            "quantity": 4587,
+            "cost_price": 65.193955,
+            "current_price": 64.455,
+            "market_value": 295655.085,
+            "unrealized_pl": -3389.586585,
+        }
+    }
+
+    _enrich_positions_pnl(positions, store=mock_store)
+
+    pos = positions["XLE"]
+    assert pos["current_price"] == 64.455
+    assert pos["market_value"] == 295655.085
+    assert pos["unrealized_pnl"] == -3389.586585
+    assert pos["unrealized_pl"] == -3389.586585
+    assert -1.15 < pos["unrealized_pnl_pct"] < -1.10
+
+
+def test_enrich_positions_pnl_short_position():
+    """Verify _enrich_positions_pnl correctly calculates PnL for short positions."""
+    from src.dashboard.app import _enrich_positions_pnl
+    from unittest.mock import MagicMock
+    import pandas as pd
+
+    mock_store = MagicMock()
+    mock_store.load.return_value = pd.DataFrame()
+
+    positions = {
+        "XLRE": {
+            "symbol": "XLRE",
+            "quantity": -18904,
+            "cost_price": 43.06,
+            "current_price": 43.045,
+            "market_value": -813722.68,
+            "unrealized_pl": 283.56,
+        }
+    }
+
+    _enrich_positions_pnl(positions, store=mock_store)
+
+    pos = positions["XLRE"]
+    assert pos["current_price"] == 43.045
+    assert pos["unrealized_pnl"] == 283.56
+    assert pos["unrealized_pnl_pct"] > 0.0  # Profitable short when price dropped
+
+
+def test_api_state_with_missing_disk_parquet_succeeds(client):
+    """Test /api/state handles positions with missing parquet files without failing or warning."""
+    mock_state = {
+        "orders": {},
+        "portfolio": {
+            "positions": {
+                "XLE": {
+                    "symbol": "XLE",
+                    "quantity": 100,
+                    "cost_price": 65.0,
+                    "current_price": 66.0,
+                    "market_value": 6600.0,
+                    "unrealized_pl": 100.0,
+                }
+            },
+            "cash": {"net_liquidity": 100000.0, "cash_balance": 90000.0}
+        }
+    }
+
+    with patch("src.dashboard.app.EXECUTION_DIR") as mock_dir:
+        mock_path = MagicMock()
+        mock_path.exists.return_value = True
+        mock_dir.__truediv__.return_value = mock_path
+
+        with patch("builtins.open", mock_open(read_data=json.dumps(mock_state))):
+            response = client.get("/api/state")
+            assert response.status_code == 200
+            data = response.json()
+            xle_pos = data["portfolio"]["positions"]["XLE"]
+            assert xle_pos["current_price"] == 66.0
+            assert xle_pos["unrealized_pnl"] == 100.0
+
+

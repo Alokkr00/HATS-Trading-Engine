@@ -117,7 +117,10 @@ class EquityCurveBuilder:
                             break
                     
                     # Try loading underlying stock data
-                    df_und = self.store.load(underlying)
+                    try:
+                        df_und = self.store.load(underlying, allow_missing=True)
+                    except Exception:
+                        df_und = None
                     if df_und is not None and not df_und.empty:
                         # Parse expiry date from symbol (YYMMDD)
                         exp_date = dt.datetime.now()
@@ -167,14 +170,17 @@ class EquityCurveBuilder:
                         price_data[sym] = df_opt
                         logger.info(f"Dynamically generated BSM options price curve for {sym} using underlying {underlying} (Strike: {strike})")
                     else:
-                        logger.warning(f"Could not load underlying historical data {underlying} for option {sym}. Using purchase price fallback.")
+                        logger.debug(f"Could not load underlying historical data {underlying} for option {sym}. Using purchase price fallback.")
                 else:
-                    df = self.store.load(sym)
+                    try:
+                        df = self.store.load(sym, allow_missing=True)
+                    except Exception:
+                        df = None
                     if df is not None and not df.empty:
                         df.index = pd.to_datetime(df.index).date
                         price_data[sym] = df
             except Exception as e:
-                logger.error(f"Failed to load historical data for {sym}: {e}")
+                logger.debug(f"Historical data not available on disk for {sym}: {e}")
 
         # Reconstruct day-by-day portfolio
         equity_curve = []
