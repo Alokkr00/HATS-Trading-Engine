@@ -114,18 +114,52 @@ class DatabaseManager:
             )
 
         # 2. Positions Table
-        # SQLite uses standard PRIMARY KEY, Postgres can use standard schemas
+        # NOTE: qty allows negative values to support short positions (e.g. qty = -18904 for XLRE short).
         self.execute_query(
             """
             CREATE TABLE IF NOT EXISTS positions (
                 symbol VARCHAR(30) PRIMARY KEY,
-                qty INTEGER NOT NULL CHECK (qty >= 0),
+                qty INTEGER NOT NULL,
                 cost_price REAL NOT NULL CHECK (cost_price >= 0.0),
                 sector VARCHAR(50) NOT NULL,
                 updated_at TEXT NOT NULL
             );
             """
         )
+
+        # Schema migration: drop the legacy CHECK (qty >= 0) constraint on existing DBs.
+        # SQLite does not support ALTER COLUMN, so we do a table-rebuild migration.
+        # This is idempotent — if the column already allows negatives, it's a no-op.
+        try:
+            if not self.is_postgres:
+                # Detect whether the constraint is still present by trying to insert a canary row with qty=-1
+                with self.engine.begin() as _conn:
+                    try:
+                        _conn.execute(text(
+                            "INSERT OR REPLACE INTO positions (symbol, qty, cost_price, sector, updated_at) "
+                            "VALUES ('__migration_canary__', -1, 0.0, 'Migration', 'canary');"
+                        ))
+                        _conn.execute(text("DELETE FROM positions WHERE symbol = '__migration_canary__';"))
+                    except Exception:
+                        # Constraint still present — rebuild the table without it
+                        logger.info("Migrating positions table: removing CHECK (qty >= 0) to support short positions...")
+                        _conn.execute(text("ALTER TABLE positions RENAME TO positions_old;"))
+                        _conn.execute(text(
+                            """
+                            CREATE TABLE positions (
+                                symbol VARCHAR(30) PRIMARY KEY,
+                                qty INTEGER NOT NULL,
+                                cost_price REAL NOT NULL CHECK (cost_price >= 0.0),
+                                sector VARCHAR(50) NOT NULL,
+                                updated_at TEXT NOT NULL
+                            );
+                            """
+                        ))
+                        _conn.execute(text("INSERT INTO positions SELECT * FROM positions_old;"))
+                        _conn.execute(text("DROP TABLE positions_old;"))
+                        logger.info("Positions table migration complete — short positions can now be stored.")
+        except Exception as _mig_err:
+            logger.warning(f"Positions table migration check failed (non-critical): {_mig_err}")
 
         # 3. Orders Table
         self.execute_query(
@@ -352,11 +386,20 @@ class DatabaseManager:
         return positions
 
     def save_position(self, symbol: str, qty: int, cost_price: float, sector: str) -> None:
-        """Save or update position entry."""
+        """Save or update position entry.
+
+        Args:
+            symbol: Ticker symbol.
+            qty: Quantity held. Positive = long, negative = short, 0 = closed (deleted).
+            cost_price: Average cost price per share.
+            sector: Sector classification string.
+        """
         now = dt.datetime.now(dt.timezone.utc).isoformat()
-        if qty <= 0:
+        if qty == 0:
+            # Position fully closed — remove from positions table
             self.execute_query("DELETE FROM positions WHERE symbol = :symbol;", {"symbol": symbol})
         else:
+            # qty > 0: long position; qty < 0: short position — both are valid open positions
             if self.is_postgres:
                 # Postgres UPSERT
                 self.execute_query(
