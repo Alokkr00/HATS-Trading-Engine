@@ -1,0 +1,34 @@
+name: Keep-Alive Ping (Prevent Render Sleep)
+
+on:
+  # Ping every 10 minutes during market hours + pre/post buffer:
+  # 13:00-20:00 UTC = 9:00 AM - 4:00 PM ET (Mon-Fri)
+  # This keeps the Render free-tier container warm so intraday cycle
+  # triggers don't incur a 30-second cold-boot penalty.
+  schedule:
+    - cron: '*/10 13-20 * * 1-5'
+  workflow_dispatch:
+
+jobs:
+  keep_alive:
+    runs-on: ubuntu-latest
+    # Keep the job lightweight — just a single HTTP ping, no checkout needed.
+    steps:
+      - name: Ping Render Health Endpoint
+        run: |
+          echo "Pinging Render keep-alive at $(date -u '+%Y-%m-%dT%H:%M:%SZ')..."
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+            "https://hats-ae7x.onrender.com/api/health" \
+            --max-time 30 || echo "000")
+          echo "Render /api/health HTTP Status: $HTTP_CODE"
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "Render is awake and healthy."
+          elif [ "$HTTP_CODE" = "000" ]; then
+            echo "WARNING: Render did not respond (cold boot in progress or down)."
+            # Not a failure — cold boot is expected on first ping after idle.
+            exit 0
+          else
+            echo "WARNING: Unexpected HTTP status $HTTP_CODE from Render."
+            # Still exit 0 — this is a best-effort ping, not a critical gate.
+            exit 0
+          fi

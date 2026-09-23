@@ -188,9 +188,9 @@ def run_trading_cycle(
         else:
             logger.critical(f"Alpaca credentials rejected: {auth_err}")
             send_telegram_alert(
-                f"⚠️ **H.A.T.S AUTHENTICATION ERROR**\n"
+                f"⚠️ <b>H.A.T.S AUTHENTICATION ERROR</b>\n"
                 f"Alpaca API rejected your credentials (HTTP 401/403 Unauthorized).\n\n"
-                f"**Resolution**: Please check or regenerate your Paper Trading API Keys at https://app.alpaca.markets and update `APCA_API_KEY_ID` and `APCA_API_SECRET_KEY`."
+                f"<b>Resolution</b>: Please check or regenerate your Paper Trading API Keys at https://app.alpaca.markets and update <code>APCA_API_KEY_ID</code> and <code>APCA_API_SECRET_KEY</code>."
             )
             return
 
@@ -229,7 +229,7 @@ def run_trading_cycle(
     allowed, reason = cb.check(net_liquidity=net_equity, trades_today=trades_today)
     if not allowed:
         logger.critical(f"Trading cycle blocked by Circuit Breaker: {reason}")
-        send_telegram_alert(f"⚠️ **H.A.T.S Circuit Breaker Active**: {reason}. Cycle skipped.")
+        send_telegram_alert(f"⚠️ <b>H.A.T.S Circuit Breaker Active</b>: {reason}. Cycle skipped.")
         return
 
     # Load 60-day price history of watchlist to compute correlations
@@ -279,7 +279,7 @@ def run_trading_cycle(
             elif qty < 0:
                 logger.warning(f"RISK_OFF: Covering short position in {sym}")
                 oms.place_trade(symbol=sym, side="BUY", qty=abs(qty))
-        send_telegram_alert("⚠️ **H.A.T.S RISK-OFF ACTIVATED**: Halted all trading and flattened positions.")
+        send_telegram_alert("⚠️ <b>H.A.T.S RISK-OFF ACTIVATED</b>: Halted all trading and flattened positions.")
         return
 
     # 4C. Instantiate Active Strategies
@@ -453,12 +453,12 @@ def run_trading_cycle(
                 
             action_text = "BUY 🟢" if signal == 1 else "SELL 🔴"
             send_telegram_alert(
-                f"🎯 **H.A.T.S Strategy Signal (Market Entry Tip)**:\n"
-                f"• **Symbol**: {symbol}\n"
-                f"• **Strategy**: {strat.name}\n"
-                f"• **Action**: {action_text}\n"
-                f"• **Signal Price**: ${last_close:.2f}\n"
-                f"• **Hurst Exponent**: {hurst_val:.3f}"
+                f"🎯 <b>H.A.T.S Strategy Signal (Market Entry Tip)</b>:\n"
+                f"• <b>Symbol</b>: {symbol}\n"
+                f"• <b>Strategy</b>: {strat.name}\n"
+                f"• <b>Action</b>: {action_text}\n"
+                f"• <b>Signal Price</b>: ${last_close:.2f}\n"
+                f"• <b>Hurst Exponent</b>: {hurst_val:.3f}"
             )
 
             # Check action side allowed by current regime
@@ -833,7 +833,7 @@ if __name__ == "__main__":
                 run_trading_cycle(interval=args.interval, use_options=args.options, force_run=args.force, dry_run=args.dry_run)
             except Exception as e:
                 logger.error(f"Error in continuous cycle iteration: {e}", exc_info=True)
-                send_telegram_alert(f"⚠️ **H.A.T.S Cycle Warning**: {e}")
+                send_telegram_alert(f"⚠️ <b>H.A.T.S Cycle Warning</b>: {e}")
             logger.info(f"Cycle completed. Sleeping for {sleep_sec}s until next candle evaluation...")
             time.sleep(sleep_sec)
 
@@ -841,5 +841,5 @@ if __name__ == "__main__":
         run_trading_cycle(interval=args.interval, use_options=args.options, force_run=args.force, dry_run=args.dry_run)
     except Exception as e:
         logger.critical(f"Unhandled systematic trading engine crash: {e}", exc_info=True)
-        send_telegram_alert(f"⚠️ **H.A.T.S CRITICAL ERROR**: Trading engine crashed with error:\n`{e}`")
+        send_telegram_alert(f"⚠️ <b>H.A.T.S CRITICAL ERROR</b>: Trading engine crashed with error:\n<code>{e}</code>")
         sys.exit(1)

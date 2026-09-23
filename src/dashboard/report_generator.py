@@ -289,15 +289,15 @@ Report Generated: {now.strftime('%Y-%m-%d %H:%M:%S')} (Week: {start_date.strftim
             trades_wow = trades_line.split("|")[3].strip()
             
             summary = (
-                f"📊 **H.A.T.S Weekly Performance Report**:\n"
-                f"• **PnL**: {pnl_val} ({pnl_wow})\n"
-                f"• **Win Rate**: {win_val} ({win_wow})\n"
-                f"• **Trades**: {trades_val} ({trades_wow})\n\n"
-                f"System verified. Full report archived in `data/reports/`."
+                f"📊 <b>H.A.T.S Weekly Performance Report</b>:\n"
+                f"• <b>PnL</b>: {pnl_val} ({pnl_wow})\n"
+                f"• <b>Win Rate</b>: {win_val} ({win_wow})\n"
+                f"• <b>Trades</b>: {trades_val} ({trades_wow})\n\n"
+                f"System verified. Full report archived in <code>data/reports/</code>."
             )
         except Exception:
             # Fallback to standard short message
-            summary = "📊 **H.A.T.S Weekly Operational Audit Complete**.\nPerformance details and charts archived in `data/reports/`."
+            summary = "📊 <b>H.A.T.S Weekly Operational Audit Complete</b>.\nPerformance details and charts archived in <code>data/reports/</code>."
             
         # Send
         if send_tg:

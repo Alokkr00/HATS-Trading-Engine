@@ -150,25 +150,36 @@ import time as _time
 
 _scheduler_thread: threading.Thread | None = None
 _scheduler_stop = threading.Event()
+# Guard flag — prevents double-start when both __main__ and module auto-import
+# call _start_trading_scheduler() (e.g. Render + uvicorn worker reload).
+_SCHEDULER_STARTED: bool = False
 
 
 def is_bot_active() -> bool:
     """Check whether the trading bot is active.
 
-    Returns True if:
-    1. An explicit bot_running.flag exists and does NOT contain 'PAUSED'
-    2. OR bot_running.flag doesn't exist yet, but Alpaca credentials are configured
-       (enables seamless hands-free operation on cloud deployment).
-    Returns False only if bot_running.flag contains 'PAUSED'.
+    Resolution order (highest → lowest priority):
+    1. ``data/execution/bot_running.flag`` — PAUSED text pauses the bot.
+    2. ``BOT_ACTIVE`` environment variable — authoritative default
+       (useful on Render where container restarts wipe local files).
+    3. Alpaca credentials present → default active for hands-free cloud operation.
     """
+    # 1. Explicit flag file (allows operator override via dashboard toggle)
     flag_file = EXECUTION_DIR / "bot_running.flag"
     if flag_file.exists():
         try:
-            return flag_file.read_text(encoding="utf-8").strip() != "PAUSED"
+            return "PAUSED" not in flag_file.read_text(encoding="utf-8")
         except Exception:
             return True
 
-    # Cloud server default: active if credentials are configured
+    # 2. BOT_ACTIVE env var — authoritative default after container restart
+    env_active = os.getenv("BOT_ACTIVE", "").strip().lower()
+    if env_active in ("0", "false", "no"):
+        return False
+    if env_active in ("1", "true", "yes"):
+        return True
+
+    # 3. Cloud server default: active if Alpaca credentials are configured
     from src.execution.alpaca_client import AlpacaClient
     return AlpacaClient.is_configured()
 
@@ -243,12 +254,19 @@ def _trading_scheduler_loop() -> None:
 
 
 def _start_trading_scheduler() -> None:
-    """Start the background trading scheduler thread (idempotent)."""
+    """Start the background trading scheduler thread (idempotent).
+
+    Protected by a module-level ``_SCHEDULER_STARTED`` boolean guard so that
+    multiple call sites (module auto-import, ``post_toggle``, CLI ``__main__``)
+    cannot accidentally spawn duplicate scheduler threads.
+    """
+    global _scheduler_thread, _SCHEDULER_STARTED
     if "pytest" in sys.modules or os.getenv("HATS_DISABLE_SCHEDULER") == "1":
         logger.info("Trading scheduler disabled under test / CI environment.")
         return
-    global _scheduler_thread
-    if _scheduler_thread is not None and _scheduler_thread.is_alive():
+    # Guard: prevent double-start (e.g. Render + uvicorn hot-reload)
+    if _SCHEDULER_STARTED and _scheduler_thread is not None and _scheduler_thread.is_alive():
+        logger.debug("Trading scheduler already running — skipping duplicate start.")
         return
     _scheduler_stop.clear()
     _scheduler_thread = threading.Thread(
@@ -257,6 +275,7 @@ def _start_trading_scheduler() -> None:
         daemon=True,
     )
     _scheduler_thread.start()
+    _SCHEDULER_STARTED = True
     logger.info("Trading scheduler thread launched.")
 
 
@@ -1039,7 +1058,14 @@ def post_liquidate() -> dict[str, str]:
 
 @app.post("/api/action/toggle", dependencies=[Depends(require_admin)])
 def post_toggle(active: bool) -> dict[str, Any]:
-    """Toggle the trading bot execution state (Active vs Paused)."""
+    """Toggle the trading bot execution state (Active vs Paused).
+
+    Persists the choice to ``data/execution/bot_config.json`` so that
+    ``is_bot_active()`` recovers the correct state after a uvicorn worker
+    restart (within the same Render deployment). On a full cold boot the
+    ephemeral disk is wiped, so ``BOT_ACTIVE`` env var serves as the
+    authoritative default instead.
+    """
     flag_file = EXECUTION_DIR / "bot_running.flag"
     try:
         if active:

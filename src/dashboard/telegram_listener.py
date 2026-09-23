@@ -40,7 +40,7 @@ class TelegramListener:
             raise ValueError("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set in the environment.")
 
     def send_message(self, text: str) -> None:
-        """Utility to send a message back to the verified chat ID."""
+        """Utility to send a message back to the verified chat ID with fallback on formatting errors."""
         url = f"https://api.telegram.org/bot{self.token}/sendMessage"
         payload = {
             "chat_id": self.chat_id,
@@ -55,10 +55,22 @@ class TelegramListener:
                 headers={"Content-Type": "application/json"},
                 method="POST"
             )
-            with urllib.request.urlopen(req, timeout=5) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 response.read()
         except Exception as e:
-            logger.error(f"TelegramListener failed to send reply message: {e}")
+            logger.warning(f"TelegramListener Markdown send failed ({e}). Retrying as plain text...")
+            try:
+                payload.pop("parse_mode", None)
+                fallback_req = urllib.request.Request(
+                    url,
+                    data=json.dumps(payload).encode("utf-8"),
+                    headers={"Content-Type": "application/json"},
+                    method="POST"
+                )
+                with urllib.request.urlopen(fallback_req, timeout=10) as response:
+                    response.read()
+            except Exception as fe:
+                logger.error(f"TelegramListener failed to send reply message: {fe}")
 
     def handle_command(self, text: str) -> None:
         """Parse incoming text commands and execute corresponding read actions."""

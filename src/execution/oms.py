@@ -429,11 +429,11 @@ class OrderManager:
 
         # Send Telegram alert on trade fill
         send_telegram_alert(
-            f"📈 **H.A.T.S Execution Fill**:\n"
-            f"• **Side**: {order.get('side')}\n"
-            f"• **Ticker**: {order.get('symbol')}\n"
-            f"• **Shares**: {qty}\n"
-            f"• **Price**: ${avg_price:.2f}"
+            f"📈 <b>H.A.T.S Execution Fill</b>:\n"
+            f"• <b>Side</b>: {order.get('side')}\n"
+            f"• <b>Ticker</b>: {order.get('symbol')}\n"
+            f"• <b>Shares</b>: {qty}\n"
+            f"• <b>Price</b>: ${avg_price:.2f}"
         )
 
         # Broadcast live event to dashboard uvicorn server via HTTP trigger
